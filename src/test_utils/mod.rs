@@ -2,7 +2,7 @@ use std::fs;
 use std::env::temp_dir;
 use std::path::PathBuf;
 
-const TEST_FOLDER: &'static str = "perlin_tests";
+const TEST_FOLDER: &'static str = "perlin-core_tests";
 
 /// Returns the `Path` to a folder where tests can do their worst
 pub fn test_dir() -> PathBuf{
