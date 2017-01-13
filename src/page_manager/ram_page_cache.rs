@@ -1,15 +1,16 @@
+use std::collections::BTreeMap;
 use std::sync::{RwLock, Arc};
 
 use utils::counter::Counter;
 use page_manager::{FsPageManager, UnfullPage, Page, Block, BlockManager, PageStore, PageId,
                    BlockId, PageCache};
 
-const CACHESIZE: usize = 1024;
+const CACHESIZE: usize = 1;
 
 pub struct RamPageCache {
     cache: RwLock<Vec<(PageId, Arc<Page>)>>,
     counter: Counter,
-    construction_cache: Vec<(PageId, Page)>,
+    construction_cache: BTreeMap<PageId, Page>,
     store: FsPageManager,
 }
 
@@ -18,7 +19,7 @@ impl RamPageCache {
         RamPageCache {
             counter: Counter::new(),
             cache: RwLock::new(Vec::with_capacity(CACHESIZE)),
-            construction_cache: Vec::with_capacity(CACHESIZE),
+            construction_cache: BTreeMap::new(),
             store: store,
         }
     }
@@ -40,34 +41,24 @@ impl BlockManager for RamPageCache {
         let page_id = PageId(self.counter.retrieve_and_inc());
         let mut p = Page::empty();
         p[BlockId::first()] = block;
-        if let Err(index) = self.construction_cache
-            .binary_search_by_key(&page_id, |&(pid, _)| pid) {
-            self.construction_cache.insert(index, (page_id, p));
-            return page_id;
-        }
-        unreachable!();
+        self.construction_cache.insert(page_id, p);
+        return page_id;
     }
 
     fn store_in_place(&mut self, page_id: PageId, block_id: BlockId, block: Block) {
-        match self.construction_cache
-            .binary_search_by_key(&page_id, |&(pid, _)| pid) {
-            // Page is currently beeing built
-            Ok(index) => {
-                self.construction_cache[index].1[block_id] = block;
-            }
-            // Page was already flushed. Retrieve it, change it
-            Err(index) => {
-                let mut page = self.store.get_page(page_id);
-                page[block_id] = block;
-                self.construction_cache.insert(index, (page_id, page));
-            }
+        //See if page is in construction cache
+        if let Some(mut page) = self.construction_cache.get_mut(&page_id) {            
+            page[block_id]  = block;                
+        } else {
+            //If the page is not in construction cache we might get a pageid collision
+            //Unresolved for now
+            unreachable!();
         }
     }
 
     fn flush_page(&mut self, page_id: PageId) -> PageId {
-        if let Ok(index) = self.construction_cache
-            .binary_search_by_key(&page_id, |&(pid, _)| pid) {
-            let (_, page) = self.construction_cache.remove(index);
+        if let Some(page) = self.construction_cache.remove(&page_id)
+        {            
             self.invalidate(page_id);
             return self.store.store_full(page);
         }
@@ -76,9 +67,8 @@ impl BlockManager for RamPageCache {
     }
 
     fn flush_unfull(&mut self, page_id: PageId, block_id: BlockId) -> UnfullPage {
-        if let Ok(index) = self.construction_cache
-            .binary_search_by_key(&page_id, |&(pid, _)| pid) {
-            let (_, page) = self.construction_cache.remove(index);
+        if let Some(page) = self.construction_cache.remove(&page_id)
+        {            
             self.invalidate(page_id);
             return self.store.store_unfull(page, block_id);
         }

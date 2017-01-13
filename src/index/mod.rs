@@ -1,5 +1,5 @@
-use std::fmt::Debug;
 use std::hash::Hash;
+use std::collections::BTreeMap;
 
 use page_manager::RamPageCache;
 use index::listing::Listing;
@@ -14,7 +14,7 @@ mod listing;
 /// Stores and manages an index with its listings and vocabulary
 pub struct Index<TTerm: Hash + Eq> {
     page_manager: RamPageCache,
-    listings: Vec<(TermId, Listing)>,
+    listings: BTreeMap<TermId, Listing>,
     vocabulary: SharedVocabulary<TTerm>,
     last_doc_id: DocId,
     doc_count: usize,
@@ -29,61 +29,13 @@ impl<TTerm> Index<TTerm>
                -> Self {
         Index {
             page_manager: page_manager,
-            listings: Vec::new(),
+            listings: BTreeMap::new(),
             vocabulary: vocabulary,
             last_doc_id: DocId::none(),
             doc_count: 0,
         }
 
-    }
-
-    /// Index a whole collection returning the corresponding document_ids
-    pub fn index_collection<TDocIter, TDocsIter>(&mut self, collection: TDocsIter) -> Vec<DocId>
-        where TDocIter: Iterator<Item = TTerm>,
-              TDocsIter: Iterator<Item = TDocIter>
-    {
-        let mut result = Vec::new();
-        let mut buff = Vec::new();
-        for doc in collection {
-            self.last_doc_id.inc();
-            let doc_id = self.last_doc_id;
-            result.push(doc_id);
-            self.doc_count += 1;
-            for term in doc {
-                let term_id = self.vocabulary.get_or_add(term);
-                buff.push((term_id, doc_id));
-            }
-        }
-        buff.sort_by_key(|&(tid, _)| tid);
-        buff.dedup();
-        let mut grouped_buff = Vec::with_capacity(buff.len());
-        let mut last_tid = TermId(0);
-        let mut term_counter = 0;
-        for (i, &(term_id, doc_id)) in buff.iter().enumerate() {
-            // if term is the first term or different to the last term (new group)
-            if last_tid < term_id || i == 0 {
-                term_counter += 1;
-                // Term_id has to be added
-                grouped_buff.push((term_id, vec![Posting(doc_id)]));
-                last_tid = term_id;
-                continue;
-            }
-            // Otherwise add a whole new posting
-            grouped_buff[term_counter - 1].1.push(Posting(doc_id));
-        }
-        for (term_id, postings) in grouped_buff {
-            let index = match self.listings.binary_search_by_key(&term_id, |&(t_id, _)| t_id) {
-                Ok(index) => index,
-                Err(index) => {
-                    self.listings.insert(index, (term_id, Listing::new()));
-                    index
-                }
-            };
-            self.listings[index].1.add(&postings, &mut self.page_manager);
-        }
-        self.commit();
-        result
-    }
+    }   
 
     /// Index a single document. If this should be retrievable right away, a
     /// call to commit is needed afterwards
@@ -117,14 +69,13 @@ impl<TTerm> Index<TTerm>
         buff.dedup();
         for term_id in buff {
             // get or add listing
-            let index = match self.listings.binary_search_by_key(&term_id, |&(t_id, _)| t_id) {
-                Ok(index) => index,
-                Err(index) => {
-                    self.listings.insert(index, (term_id, Listing::new()));
-                    index
-                }
+            if let Some(listing) = self.listings.get_mut(&term_id) {
+                listing.add(&[Posting(doc_id)], &mut self.page_manager);
+                continue;
             };
-            self.listings[index].1.add(&[Posting(doc_id)], &mut self.page_manager);
+            let mut new_listing = Listing::new();
+            new_listing.add(&[Posting(doc_id)], &mut self.page_manager);
+            self.listings.insert(term_id, new_listing);            
         }
         doc_id
     }
@@ -139,11 +90,10 @@ impl<TTerm> Index<TTerm>
     }
 
     pub fn query_atom(&self, atom: &TTerm) -> Vec<Posting>
-        where TTerm: Debug
     {
         if let Some(term_id) = self.vocabulary.get(atom) {
-            if let Ok(index) = self.listings.binary_search_by_key(&term_id, |&(t_id, _)| t_id) {
-                return self.listings[index].1.posting_iter(&self.page_manager).collect::<Vec<_>>();
+            if let Some(listing) = self.listings.get(&term_id) {
+                return listing.posting_iter(&self.page_manager).collect::<Vec<_>>();
             }
         }
         vec![]
