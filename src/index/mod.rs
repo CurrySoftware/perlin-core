@@ -140,18 +140,7 @@ mod tests {
         assert_eq!(index.query_atom(&0), vec![Posting(DocId(0))]);
         assert_eq!(index.query_atom(&99),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
-    }
-
-    #[test]
-    fn collection_indexing() {
-        let mut index = new_index("collection_indexing");
-        assert_eq!(index.index_collection((0..200).map(|i| (i..i + 200))),
-                   (0..200).map(|i| DocId(i)).collect::<Vec<_>>());
-
-        assert_eq!(index.query_atom(&0), vec![Posting(DocId(0))]);
-        assert_eq!(index.query_atom(&99),
-                   (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
-    }
+    }  
 
     #[test]
     fn mutable_index() {
