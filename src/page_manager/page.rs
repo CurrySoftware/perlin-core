@@ -48,6 +48,10 @@ impl Pages {
         self.0.len() + self.1.map_or(0, |_| 1)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     #[inline]
     pub fn push(&mut self, page_id: PageId)  {
         self.0.push(page_id);
@@ -66,6 +70,12 @@ impl Pages {
     #[inline]
     pub fn unfull(&self) -> Option<UnfullPage> {
         self.1
+    }
+}
+
+impl Default for Pages {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -108,13 +118,13 @@ impl Clone for Page {
 impl Index<BlockId> for Page {
     type Output = Block;
     
-    fn index<'a>(&'a self, _index: BlockId) -> &'a Block {
+    fn index(&self, _index: BlockId) -> &Block {
         &self.0[_index.0 as usize]
     }
 }
 
 impl IndexMut<BlockId> for Page {
-    fn index_mut<'a>(&'a mut self, _index: BlockId) -> &'a mut Block {
+    fn index_mut(&mut self, _index: BlockId) -> &mut Block {
         &mut self.0[_index.0 as usize]
     }
 }

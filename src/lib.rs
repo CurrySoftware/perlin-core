@@ -2,7 +2,7 @@
 //!
 //! It does not know about strings, language or documents.
 //! If you are looking for a fully featured document search engine please refer
-//! to [https://github.com/JDemler/perlin]
+//! to [perlin](https://github.com/JDemler/perlin)
 //!
 //! Here you will find the basic building blocks on which perlin is build upon!
 #[macro_use]

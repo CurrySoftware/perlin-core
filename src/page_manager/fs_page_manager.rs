@@ -39,7 +39,7 @@ impl FsPageManager {
 
 impl PageStore for FsPageManager {
     fn store_full(&mut self, page: Page) -> PageId {
-        let id = self.unpopulated_pages.pop().unwrap_or(PageId(self.count.retrieve_and_inc()));
+        let id = self.unpopulated_pages.pop().unwrap_or_else(|| PageId(self.count.retrieve_and_inc()));
         self.write_page(page, id);
         id
     }
@@ -94,7 +94,7 @@ impl PageStore for FsPageManager {
         } else {
             //Otherwise we have to write the refcount back to page... alas
             f.seek(SeekFrom::Start(page_id.0 * PAGESIZE as u64 * BLOCKSIZE as u64)).unwrap();
-            f.write(&refcount).unwrap();
+            f.write_all(&refcount).unwrap();
         }
     }
 

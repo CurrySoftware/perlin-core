@@ -79,7 +79,7 @@ impl<T> RingBuffer<T> {
             self.count -= 1;
             self.start += 1;
             self.start %= SIZE;
-            return element;
+            element                
         } else {
             None
         }

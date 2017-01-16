@@ -36,27 +36,23 @@ impl<TTerm: Hash + Eq> Vocabulary<TTerm> for SharedVocabulary<TTerm>{
             //It was obivously not added. so we will do this now!
             let term_id = TermId(write.len() as u64);
             write.insert(term, term_id);
-            return term_id;
+            term_id
         }
     }
 
     fn get(&self, term: &TTerm) -> Option<TermId> {
-        self.0.read().unwrap().get(term).map(|t| *t)
+        self.0.read().unwrap().get(term).cloned()
     }
 }
 
 impl<TTerm> Vocabulary<TTerm> for HashMap<TTerm, TermId> where TTerm: Hash + Eq{
     fn get_or_add(&mut self, term: TTerm) -> TermId {
-        if !self.contains_key(&term) {
-            let t_id = TermId(self.len() as u64);
-            self.insert(term, t_id);
-            return t_id;
-        }
-        *self.get(&term).unwrap()
+        let len = self.len();
+        *self.entry(term).or_insert_with(|| TermId(len as u64))
     }
 
     #[inline]
     fn get(&self, term: &TTerm) -> Option<TermId> {
-        self.get(term).map(|t| *t)
+        self.get(term).cloned()
     }
 }

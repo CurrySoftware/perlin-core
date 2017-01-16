@@ -42,7 +42,7 @@ impl BlockManager for RamPageCache {
         let mut p = Page::empty();
         p[BlockId::first()] = block;
         self.construction_cache.insert(page_id, p);
-        return page_id;
+        page_id
     }
 
     fn store_in_place(&mut self, page_id: PageId, block_id: BlockId, block: Block) {

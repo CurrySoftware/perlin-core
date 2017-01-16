@@ -23,14 +23,14 @@ impl Compressor for NaiveCompressor {
             }
             Some(Block(block))
         } else {
-            return None;
+            None
         }
     }
 
     fn force_compress(data: &mut BiasedRingBuffer<Posting>) -> Block {
         let mut block = [0u8; BLOCKSIZE];
         for i in 0..BLOCKSIZE / 8 {
-            let posting = data.pop_front_biased().unwrap_or(Posting(DocId::none()));
+            let posting = data.pop_front_biased().unwrap_or_else(|| Posting(DocId::none()));
             block[i * 8..(i * 8) + 8]
                 .copy_from_slice(unsafe { &mem::transmute::<Posting, [u8; 8]>(posting) });
         }
