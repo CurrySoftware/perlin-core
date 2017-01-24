@@ -7,6 +7,7 @@ use page_manager::{FsPageManager, UnfullPage, Page, Block, BlockManager, PageSto
 
 const CACHESIZE: usize = 1;
 
+#[derive(Debug)]
 pub struct RamPageCache {
     cache: RwLock<Vec<(PageId, Arc<Page>)>>,
     counter: Counter,

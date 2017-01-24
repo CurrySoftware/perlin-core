@@ -9,6 +9,7 @@ use index::posting::{Posting, DocId, PostingIterator};
 
 pub type UsedCompressor = NaiveCompressor;
 
+#[derive(Debug)]
 pub struct Listing {
     pages: Pages,
     current_page: Option<PageId>,

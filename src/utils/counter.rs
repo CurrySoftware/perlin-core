@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub struct Counter(u64);
 
 impl Counter {

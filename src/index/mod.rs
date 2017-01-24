@@ -9,6 +9,7 @@ use index::vocabulary::{Vocabulary, TermId, SharedVocabulary};
 pub mod vocabulary;
 pub mod posting;
 mod listing;
+mod debug_impl;
 
 /// Central struct of perlin
 /// Stores and manages an index with its listings and vocabulary

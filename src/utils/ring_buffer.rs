@@ -1,3 +1,4 @@
+use std::fmt;
 use std::mem;
 use std::ops::{DerefMut, Deref};
 use utils::Baseable;
@@ -11,6 +12,13 @@ pub struct RingBuffer<T> {
     base: T,
 }
 
+impl<T: fmt::Debug> fmt::Debug for RingBuffer<T>{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "RingBuffer: {:?}, start: {}, count {}", &self.buff as &[T], self.start, self.count)
+    }
+}
+
+#[derive(Debug)]
 pub struct BiasedRingBuffer<T>{
     buff: RingBuffer<T>,
     base: T

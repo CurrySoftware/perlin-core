@@ -5,6 +5,7 @@ use std::fs::{OpenOptions, File};
 use utils::counter::Counter;
 use page_manager::{UnfullPage, Page, PageId, BlockId, PageStore, PAGESIZE, BLOCKSIZE};
 
+#[derive(Debug)]
 pub struct FsPageManager {
     pages: File,
     count: Counter,
