@@ -1,3 +1,8 @@
+//! Perlin saves postings on a disk by default.
+//! It does that by encoding multiple postings together to a `Block` (64 bytes).
+//! Many of these `Block`s then make up a `Page`.
+//! These `Page`s can then be written or retrieved to/from disk (or any other medium).
+//! This module provides traits for abstracting this concept.
 use std::sync::Arc;
 
 pub use page_manager::page::{Pages, UnfullPage, Page, PageId, PAGESIZE};
