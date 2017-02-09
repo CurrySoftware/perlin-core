@@ -38,6 +38,24 @@ impl<TTerm> Index<TTerm>
 
     }   
 
+    /// Index a single term. This is more of an experiment and will probably not stay forever!
+    pub fn index_term(&mut self, term: TTerm, doc_id: DocId) {
+        // Assert one critical assumption about the doc_id:
+        // It must not be smaller than any previous doc_ids!
+        // If it is, fail hard before something bad happens!
+        assert!(doc_id >= self.last_doc_id || self.last_doc_id == DocId::none());
+        self.last_doc_id = doc_id;
+        // Resolve term
+        let term_id = self.vocabulary.get_or_add(term);
+        if let Some(listing) = self.listings.get_mut(&term_id) {
+            listing.add(&[Posting(doc_id)], &mut self.page_manager);
+            return;
+        } 
+        let mut new_listing = Listing::new();
+        new_listing.add(&[Posting(doc_id)], &mut self.page_manager);
+        self.listings.insert(term_id, new_listing);        
+    }
+    
     /// Index a single document. If this should be retrievable right away, a
     /// call to commit is needed afterwards
     ///
@@ -81,6 +99,10 @@ impl<TTerm> Index<TTerm>
         doc_id
     }
 
+    /// Commits listings to page manager and makes them retrievable
+    /// If this method is not called before querying you will not be happy!
+    //TODO: Find a way if we can make this a compile-time error or warning
+    //The Rocket framework has a similar capability for managed variables.
     pub fn commit(&mut self) {
         // We iterate over the listings in reverse here because listing.commit() causes
         // a remove in the ram_page_manager.construction cache which is a Vec.
@@ -128,6 +150,19 @@ mod tests {
         index.commit();
 
         assert_eq!(index.query_atom(&0), vec![Posting(DocId(0))]);
+    }
+
+    #[test]
+    fn term_indexing() {
+        let mut index = new_index("term_indexing");
+        index.index_term(100, DocId(0));
+        index.index_term(200, DocId(0));
+        index.index_term(100, DocId(1));
+        index.index_term(150, DocId(1));
+        index.commit();
+        
+        assert_eq!(index.query_atom(&100), vec![Posting(DocId(0)), Posting(DocId(1))]);
+        assert_eq!(index.query_atom(&150), vec![Posting(DocId(1))]);        
     }
 
     #[test]
