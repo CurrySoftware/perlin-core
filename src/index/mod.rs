@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 
 use page_manager::RamPageCache;
 use index::listing::Listing;
-use index::posting::{DocId, Posting};
+use index::posting::{DocId, Posting, PostingIterator};
 use index::vocabulary::{Vocabulary, TermId, SharedVocabulary};
 
 pub mod vocabulary;
@@ -112,14 +112,16 @@ impl<TTerm> Index<TTerm>
         }
     }
 
-    pub fn query_atom(&self, atom: &TTerm) -> Vec<Posting>
+    pub fn query_atom(&self, atom: &TTerm) -> Option<PostingIterator>
     {
         if let Some(term_id) = self.vocabulary.get(atom) {
+            //Found term
             if let Some(listing) = self.listings.get(&term_id) {
-                return listing.posting_iter(&self.page_manager).collect::<Vec<_>>();
+                //Got listing for term
+                return Some(listing.posting_iter(&self.page_manager));
             }
         }
-        vec![]
+        None
     }
 }
 
