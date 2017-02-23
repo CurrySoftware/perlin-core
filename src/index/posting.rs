@@ -5,7 +5,7 @@ use utils::Baseable;
 use index::listing::UsedCompressor;
 
 
-#[derive(Debug, PartialEq, Copy, Clone)]
+#[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone)]
 pub struct Posting(pub DocId);
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone)]
 pub struct DocId(pub u64);
