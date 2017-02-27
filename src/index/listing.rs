@@ -5,7 +5,7 @@ use compressor::{Compressor, NaiveCompressor};
 
 use page_manager::{Pages, PageId, Block, BlockIter, BlockId, RamPageCache, PageCache, BlockManager};
 
-use index::posting::{Posting, DocId, PostingIterator};
+use index::posting::{Posting, DocId, PostingDecoder};
 
 pub type UsedCompressor = NaiveCompressor;
 
@@ -40,12 +40,17 @@ impl Listing {
             self.unravel_unfull(page_cache)
         }
         for (i, posting) in postings.iter().enumerate() {
-            if self.block_end == *posting {
+            // Don't allow duplicate postings for documents
+            // If this test would not be here, term x could have multiple entries for one doc id
+            // Like X: DocId(0) DocId(0) DocId(1)
+            if !self.posting_buffer.is_empty() && self.block_end == *posting {
                 continue;
             }
+            // set the new block end
             self.block_end = *posting;
             self.posting_buffer.push_back(*posting);
             if i % 8 == 0 {
+                // Check if we can compress and ship a block every 8 items
                 self.compress_and_ship(page_cache, false);
             }
         }
@@ -61,10 +66,10 @@ impl Listing {
         }
     }
 
-
-    pub fn posting_iter<'a>(&self, cache: &'a RamPageCache) -> PostingIterator<'a> {
+    /// Construct a posting decoder for this listing
+    pub fn posting_decoder<'a>(&self, cache: &'a RamPageCache) -> PostingDecoder<'a> {
         let block_iter = BlockIter::new(cache, self.pages.clone());
-        PostingIterator::new(block_iter, self.block_biases.clone())
+        PostingDecoder::new(block_iter, self.block_biases.clone())
     }
 
     fn compress_and_ship(&mut self, page_cache: &mut RamPageCache, force: bool) {
@@ -88,11 +93,14 @@ impl Listing {
         // Otherwise we ran into a very unpleasant bug! Scream around loudly!
         assert!(self.current_page.is_none());
         if let Some(unfull_page) = self.pages.take_unfull() {
-            // Build the block iter
+            // Build the postings
             let postings = {
+                // Get the block count of the unfull page
                 let block_count = unfull_page.to().0 - unfull_page.from().0;
+                // build the block iter
                 let block_iter = BlockIter::new(page_cache, Pages(vec![], Some(unfull_page)));
-                PostingIterator::new(block_iter,
+                // Decode the postings through a decoder
+                PostingDecoder::new(block_iter,
                                      self.block_biases[self.block_biases.len() -
                                                        block_count as usize..]
                                          .to_vec())
@@ -206,7 +214,7 @@ mod tests {
         listing.add(&[Posting(DocId(0))], &mut cache);
         assert_eq!(listing.pages.len(), 0);
         assert_eq!(listing.posting_buffer.count(), 1);
-        for i in 0..10000 {
+        for i in 0..10001 {
             listing.add(&[Posting(DocId(i))], &mut cache);
         }
         assert!(listing.pages.len() > 0);

@@ -53,17 +53,24 @@ impl<'a> Baseable<&'a Posting> for Posting {
     }
 }
 
+/// Wraps the Decoder around an enum.
+/// For the possibility of an empty decoder
+pub enum PostingIterator<'a> {
+    Empty,
+    Decoder(PostingDecoder<'a>)
+}
+
 ///Takes a block iterator and a list of biases and iterates over the resulting postings
-pub struct PostingIterator<'a> {
+pub struct PostingDecoder<'a> {
     blocks: BlockIter<'a>,
     bias_list: Vec<Posting>,
     bias_list_ptr: usize,
     posting_buffer: BiasedRingBuffer<Posting>,
 }
 
-impl<'a> PostingIterator<'a> {
+impl<'a> PostingDecoder<'a> {
     pub fn new(blocks: BlockIter<'a>, bias_list: Vec<Posting>) -> Self {
-        PostingIterator {
+        PostingDecoder {
             blocks: blocks,
             bias_list: bias_list,
             bias_list_ptr: 0,
@@ -73,6 +80,21 @@ impl<'a> PostingIterator<'a> {
 }
 
 impl<'a> Iterator for PostingIterator<'a> {
+    type Item = Posting;
+
+    fn next(&mut self) -> Option<Posting> {
+        match *self {
+            PostingIterator::Empty => {
+                None
+            },
+            PostingIterator::Decoder(ref mut decoder) => {
+                decoder.next()
+            }
+        }
+    }
+}
+
+impl<'a> Iterator for PostingDecoder<'a> {
     type Item = Posting;
 
     fn next(&mut self) -> Option<Posting> {
@@ -111,7 +133,7 @@ mod tests {
         let mut listing = Listing::new();
         listing.add(&[Posting(DocId(0))], &mut cache);
         listing.commit(&mut cache);
-        assert_eq!(listing.posting_iter(&cache).collect::<Vec<_>>(),
+        assert_eq!(listing.posting_decoder(&cache).collect::<Vec<_>>(),
                    vec![Posting(DocId(0))]);
     }
 
@@ -124,7 +146,7 @@ mod tests {
         }
         listing.commit(&mut cache);
         let res = (0..2048).map(|i| Posting(DocId(i))).collect::<Vec<_>>();
-        assert_eq!(listing.posting_iter(&cache).collect::<Vec<_>>(), res);
+        assert_eq!(listing.posting_decoder(&cache).collect::<Vec<_>>(), res);
     }
 
     #[test]
@@ -144,9 +166,9 @@ mod tests {
         let res1 = (0..2049).map(|i| Posting(DocId(i))).collect::<Vec<_>>();
         let res2 = (0..2049).map(|i| Posting(DocId(i*2))).collect::<Vec<_>>();
         let res3 = (0..2049).map(|i| Posting(DocId(i*3))).collect::<Vec<_>>();
-        assert_eq!(listing1.posting_iter(&cache).collect::<Vec<_>>(), res1);
-        assert_eq!(listing2.posting_iter(&cache).collect::<Vec<_>>(), res2);
-        assert_eq!(listing3.posting_iter(&cache).collect::<Vec<_>>(), res3);
+        assert_eq!(listing1.posting_decoder(&cache).collect::<Vec<_>>(), res1);
+        assert_eq!(listing2.posting_decoder(&cache).collect::<Vec<_>>(), res2);
+        assert_eq!(listing3.posting_decoder(&cache).collect::<Vec<_>>(), res3);
     }
 
     #[test]
@@ -170,9 +192,9 @@ mod tests {
         let res1 = (0..4596).map(|i| Posting(DocId(i))).collect::<Vec<_>>();
         let res2 = (0..4596).filter(|i| i % 2 == 0).map(|i| Posting(DocId(i*2))).collect::<Vec<_>>();
         let res3 = (0..4596).filter(|i| i % 3 == 0).map(|i| Posting(DocId(i*3))).collect::<Vec<_>>();
-        assert_eq!(listing1.posting_iter(&cache).collect::<Vec<_>>(), res1);
-        assert_eq!(listing2.posting_iter(&cache).collect::<Vec<_>>(), res2);
-        assert_eq!(listing3.posting_iter(&cache).collect::<Vec<_>>(), res3);
+        assert_eq!(listing1.posting_decoder(&cache).collect::<Vec<_>>(), res1);
+        assert_eq!(listing2.posting_decoder(&cache).collect::<Vec<_>>(), res2);
+        assert_eq!(listing3.posting_decoder(&cache).collect::<Vec<_>>(), res3);
     }
 
 

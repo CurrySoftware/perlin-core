@@ -25,9 +25,7 @@ pub struct Index<TTerm: Hash + Eq> {
 impl<TTerm> Index<TTerm>
     where TTerm: Hash + Ord
 {
-    pub fn new(page_manager: RamPageCache,
-               vocabulary: SharedVocabulary<TTerm>)
-               -> Self {
+    pub fn new(page_manager: RamPageCache, vocabulary: SharedVocabulary<TTerm>) -> Self {
         Index {
             page_manager: page_manager,
             listings: BTreeMap::new(),
@@ -36,9 +34,10 @@ impl<TTerm> Index<TTerm>
             doc_count: 0,
         }
 
-    }   
+    }
 
-    /// Index a single term. This is more of an experiment and will probably not stay forever!
+    /// Index a single term. This is more of an experiment and will probably
+    /// not stay forever!
     pub fn index_term(&mut self, term: TTerm, doc_id: DocId) {
         // Assert one critical assumption about the doc_id:
         // It must not be smaller than any previous doc_ids!
@@ -50,12 +49,12 @@ impl<TTerm> Index<TTerm>
         if let Some(listing) = self.listings.get_mut(&term_id) {
             listing.add(&[Posting(doc_id)], &mut self.page_manager);
             return;
-        } 
+        }
         let mut new_listing = Listing::new();
         new_listing.add(&[Posting(doc_id)], &mut self.page_manager);
-        self.listings.insert(term_id, new_listing);        
+        self.listings.insert(term_id, new_listing);
     }
-    
+
     /// Index a single document. If this should be retrievable right away, a
     /// call to commit is needed afterwards
     ///
@@ -66,10 +65,10 @@ impl<TTerm> Index<TTerm>
                                  -> DocId
         where TIter: Iterator<Item = TTerm>
     {
-        //check if user wants to overwrite doc id.
-        //If so, assert, that the one assumption about doc_ids is enforced:
-        //They are strictly monotonically increasing.
-        //If this is not the case: fail hard before something bad happens!
+        // check if user wants to overwrite doc id.
+        // If so, assert, that the one assumption about doc_ids is enforced:
+        // They are strictly monotonically increasing.
+        // If this is not the case: fail hard before something bad happens!
         let doc_id = if let Some(doc_id) = overwrite_doc_id {
             assert!(doc_id > self.last_doc_id || self.last_doc_id == DocId::none());
             self.last_doc_id = doc_id;
@@ -94,15 +93,15 @@ impl<TTerm> Index<TTerm>
             };
             let mut new_listing = Listing::new();
             new_listing.add(&[Posting(doc_id)], &mut self.page_manager);
-            self.listings.insert(term_id, new_listing);            
+            self.listings.insert(term_id, new_listing);
         }
         doc_id
     }
 
     /// Commits listings to page manager and makes them retrievable
     /// If this method is not called before querying you will not be happy!
-    //TODO: Find a way if we can make this a compile-time error or warning
-    //The Rocket framework has a similar capability for managed variables.
+    // TODO: Find a way if we can make this a compile-time error or warning
+    // The Rocket framework has a similar capability for managed variables.
     pub fn commit(&mut self) {
         // We iterate over the listings in reverse here because listing.commit() causes
         // a remove in the ram_page_manager.construction cache which is a Vec.
@@ -112,16 +111,17 @@ impl<TTerm> Index<TTerm>
         }
     }
 
-    pub fn query_atom(&self, atom: &TTerm) -> Option<PostingIterator>
-    {
+    pub fn query_atom(&self, atom: &TTerm) -> PostingIterator {
         if let Some(term_id) = self.vocabulary.get(atom) {
-            //Found term
+            // Found term
             if let Some(listing) = self.listings.get(&term_id) {
-                //Got listing for term
-                return Some(listing.posting_iter(&self.page_manager));
+                // Got listing for term.
+                // Might not be the case for a shared vocabulary!
+                return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
             }
         }
-        None
+        // Term not found, return an empty iterator!
+        PostingIterator::Empty
     }
 }
 
@@ -138,8 +138,7 @@ mod tests {
     fn new_index(name: &str) -> Index<usize> {
         let path = &create_test_dir(format!("index/{}", name).as_str());
         let pmgr = FsPageManager::new(&path.join("pages.bin"));
-        Index::<usize>::new(RamPageCache::new(pmgr),
-                            SharedVocabulary::new())
+        Index::<usize>::new(RamPageCache::new(pmgr), SharedVocabulary::new())
     }
 
     #[test]
@@ -151,7 +150,7 @@ mod tests {
         assert_eq!(index.index_document((500..600), None), DocId(2));
         index.commit();
 
-        assert_eq!(index.query_atom(&0), vec![Posting(DocId(0))]);
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
     }
 
     #[test]
@@ -162,9 +161,10 @@ mod tests {
         index.index_term(100, DocId(1));
         index.index_term(150, DocId(1));
         index.commit();
-        
-        assert_eq!(index.query_atom(&100), vec![Posting(DocId(0)), Posting(DocId(1))]);
-        assert_eq!(index.query_atom(&150), vec![Posting(DocId(1))]);        
+
+        assert_eq!(index.query_atom(&100).collect::<Vec<_>>(),
+                   vec![Posting(DocId(0)), Posting(DocId(1))]);
+        assert_eq!(index.query_atom(&150).collect::<Vec<_>>(), vec![Posting(DocId(1))]);
     }
 
     #[test]
@@ -175,10 +175,10 @@ mod tests {
         }
         index.commit();
 
-        assert_eq!(index.query_atom(&0), vec![Posting(DocId(0))]);
-        assert_eq!(index.query_atom(&99),
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+        assert_eq!(index.query_atom(&99).collect::<Vec<_>>(),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
-    }  
+    }
 
     #[test]
     fn mutable_index() {
@@ -188,12 +188,12 @@ mod tests {
         }
         index.commit();
 
-        assert_eq!(index.query_atom(&0), vec![Posting(DocId(0))]);
-        assert_eq!(index.query_atom(&99),
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+        assert_eq!(index.query_atom(&99).collect::<Vec<_>>(),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
         assert_eq!(index.index_document(0..400, None), DocId(200));
         index.commit();
-        assert_eq!(index.query_atom(&0),
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
                    vec![Posting(DocId(0)), Posting(DocId(200))]);
     }
 
@@ -221,16 +221,16 @@ mod tests {
         index1.commit();
         index2.commit();
 
-        assert_eq!(index1.query_atom(&99), vec![]);
-        assert_eq!(index2.query_atom(&99),
+        assert_eq!(index1.query_atom(&99).collect::<Vec<_>>(), vec![]);
+        assert_eq!(index2.query_atom(&99).collect::<Vec<_>>(),
                    (0..100).filter(|i| i % 2 != 0).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
 
-        assert_eq!(index1.query_atom(&200),
+        assert_eq!(index1.query_atom(&200).collect::<Vec<_>>(),
                    (1..200)
                        .filter(|i| i % 2 == 0)
                        .map(|i| Posting(DocId(i)))
                        .collect::<Vec<_>>());
-        assert_eq!(index2.query_atom(&200), vec![]);
+        assert_eq!(index2.query_atom(&200).collect::<Vec<_>>(), vec![]);
     }
 
     #[test]
