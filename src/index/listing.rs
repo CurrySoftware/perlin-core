@@ -40,6 +40,9 @@ impl Listing {
             self.unravel_unfull(page_cache)
         }
         for (i, posting) in postings.iter().enumerate() {
+            if self.block_end == *posting {
+                continue;
+            }
             self.block_end = *posting;
             self.posting_buffer.push_back(*posting);
             if i % 8 == 0 {
