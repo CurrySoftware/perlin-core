@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 use page_manager::RamPageCache;
 use index::listing::Listing;
 use index::posting::{DocId, Posting, PostingIterator};
-use index::vocabulary::{Vocabulary, TermId, SharedVocabulary};
+use index::vocabulary::{Vocabulary, TermId, SharedVocabulary, TermIterator};
 
 pub mod vocabulary;
 pub mod posting;
@@ -125,6 +125,16 @@ impl<TTerm> Index<TTerm>
     }
 }
 
+impl<TTerm> Index<TTerm>
+    where TTerm: Ord + Hash,
+          SharedVocabulary<TTerm>: for<'r> TermIterator<'r, TTerm>
+{
+    pub fn iterate_terms(&self) -> <SharedVocabulary<TTerm> as TermIterator<TTerm>>::TIter {
+        self.vocabulary.iterate_terms()
+    }
+}
+
+
 
 #[cfg(test)]
 mod tests {
@@ -150,7 +160,8 @@ mod tests {
         assert_eq!(index.index_document((500..600), None), DocId(2));
         index.commit();
 
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+                   vec![Posting(DocId(0))]);
     }
 
     #[test]
@@ -164,7 +175,8 @@ mod tests {
 
         assert_eq!(index.query_atom(&100).collect::<Vec<_>>(),
                    vec![Posting(DocId(0)), Posting(DocId(1))]);
-        assert_eq!(index.query_atom(&150).collect::<Vec<_>>(), vec![Posting(DocId(1))]);
+        assert_eq!(index.query_atom(&150).collect::<Vec<_>>(),
+                   vec![Posting(DocId(1))]);
     }
 
     #[test]
@@ -175,7 +187,8 @@ mod tests {
         }
         index.commit();
 
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+                   vec![Posting(DocId(0))]);
         assert_eq!(index.query_atom(&99).collect::<Vec<_>>(),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
     }
@@ -188,7 +201,8 @@ mod tests {
         }
         index.commit();
 
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+                   vec![Posting(DocId(0))]);
         assert_eq!(index.query_atom(&99).collect::<Vec<_>>(),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
         assert_eq!(index.index_document(0..400, None), DocId(200));
@@ -239,5 +253,14 @@ mod tests {
         let mut index = new_index("wrong_overwritten_doc_id");
         index.index_document(0..10, Some(DocId(10)));
         index.index_document(0..10, Some(DocId(5)));
+    }
+
+    #[test]
+    fn iterate_terms() {
+        let mut index = new_index("iterate_terms");
+        index.index_document(0..10, Some(DocId(0)));
+        let mut terms = index.iterate_terms().cloned().collect::<Vec<_>>();
+        terms.sort();
+        assert_eq!(terms, vec![0,1,2,3,4,5,6,7,8,9]);
     }
 }
