@@ -1,6 +1,6 @@
 use std::hash::Hash;
 use std::collections::HashMap;
-use std::collections::hash_map::Keys;
+use std::collections::hash_map::Iter;
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Copy, Clone)]
 pub struct TermId(pub u64);
@@ -15,7 +15,7 @@ impl<TTerm: Hash + Eq> SharedVocabulary<TTerm> {
 }
 
 pub trait TermIterator<'a, TTerm: 'a> {
-    type TIter: Iterator<Item=&'a TTerm>;
+    type TIter: Iterator<Item=(&'a TTerm, &'a TermId)>;
     fn iterate_terms(&'a self) -> Self::TIter;
 }
 
@@ -25,10 +25,10 @@ pub trait Vocabulary<TTerm> {
 }
 
 impl<'a, TTerm: 'a + Hash + Eq> TermIterator<'a, TTerm> for SharedVocabulary<TTerm> {
-    type TIter = Keys<'a, TTerm, TermId>;
+    type TIter = Iter<'a, TTerm, TermId>;
 
     fn iterate_terms(&'a self) -> Self::TIter {
-        self.0.keys()
+        self.0.iter()
     }
 }
 

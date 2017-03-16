@@ -36,8 +36,6 @@ impl<TTerm> Index<TTerm>
 
     }
 
-    /// Index a single term. This is more of an experiment and will probably
-    /// not stay forever!
     pub fn index_term(&mut self, term: TTerm, doc_id: DocId) {
         // Assert one critical assumption about the doc_id:
         // It must not be smaller than any previous doc_ids!
@@ -259,7 +257,7 @@ mod tests {
     fn iterate_terms() {
         let mut index = new_index("iterate_terms");
         index.index_document(0..10, Some(DocId(0)));
-        let mut terms = index.iterate_terms().cloned().collect::<Vec<_>>();
+        let mut terms = index.iterate_terms().map(|(term, _)| term.clone()).collect::<Vec<_>>();
         terms.sort();
         assert_eq!(terms, vec![0,1,2,3,4,5,6,7,8,9]);
     }
