@@ -121,6 +121,14 @@ impl<TTerm> Index<TTerm>
         // Term not found, return an empty iterator!
         PostingIterator::Empty
     }
+
+    pub fn query_term(&self, term_id: &TermId) -> PostingIterator {
+        if let Some(listing) = self.listings.get(term_id) {
+            println!("Found term id");
+            return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
+        }
+        PostingIterator::Empty
+    }
 }
 
 impl<TTerm> Index<TTerm>
@@ -260,5 +268,18 @@ mod tests {
         let mut terms = index.iterate_terms().map(|(term, _)| term.clone()).collect::<Vec<_>>();
         terms.sort();
         assert_eq!(terms, vec![0,1,2,3,4,5,6,7,8,9]);
+    }
+
+    #[test]
+    fn query_term_id() {
+        let mut index = new_index("query_term_id");
+        index.index_document(0..10, Some(DocId(0)));
+        index.index_document(1..10, Some(DocId(1)));
+        index.commit();
+        for (term, term_id) in index.iterate_terms() {
+            if *term == 0 {
+                assert_eq!(index.query_term(term_id).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+            }
+        }
     }
 }
