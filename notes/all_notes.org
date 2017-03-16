@@ -397,3 +397,78 @@ Find modular testable things. Implement them module by module with extensive tes
 1. Define Struct
 2. Implement Indexing
 
+
+* Filter
+** TopK most relevant filters
+*** Problem Definition
+Dimensions:
+Number Filters: 10.000
+Average Number Documents that match Filter: 10.000
+Max Time: 1ms
+=> 100 ns per Filter
+
+Sorting 10.000 values takes about 0.5ms!
+
+One comparison takes !at least! (w/o disk IO) 2ns!
+Leaves us with about 500.000 operations if we dont sort and 250.000 operations if we sort!
+
+Data:
+Query Result:
+&[DocId]
+
+Filter#1
+&[DocId]
+
+Filter#2
+&[DocId]
+
+Filter 1 is more relevant when |Filter#1 intersected with query result| > |Filter#2 intersected with query result|
+
+*** Naive Approach
+for each f in filters
+calculate |f intersected with query result|
+
+sort filters by set_size
+take top k
+
+Estimation for worst case:
+10.000 intersections * 10.000 operations => 100.000.000 Operations
+in 1.000.000 ns
+
+Or O(|F| * min(|QR|, |aF|)) 
+
+about 100x too slow!
+
+*** Sampling Approach
+Idea: Only sample a fraction of the whole result set, project the resulting set size from this sample data
+Number of Samples per Filter = 10
+Samplesize = 16
+
+if filter.size() > 200 sample
+else
+count
+
+10.000 * 160 => 1.600.000
+in 1.000.000 ns
+
+about 10x too slow!
+
+*** Sampling + Throw away impossibles
+Idea: Sample large filters, count small ones, dont do anything with ones that are smaller than current limit!
+Current limit is ResultSize[k]!
+
+Need the information of DocumentFrequency for that to work.
+
+Pseudocode
+
+TopKFilterOptions: &[FilterOption] -> ResultSet -> &[(FilterOption, usize)]
+results: &[(FilterOption, usize)]
+for option in options {
+  if option.size() > limit {
+     let size = sample_intersect(option, result_set).size();
+     if size > limit {
+        results.insert(index, (option, size));
+        limit = results[k].1;
+     }
+  }
+}
