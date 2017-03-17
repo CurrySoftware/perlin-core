@@ -100,7 +100,7 @@ impl<'a> Iterator for PostingIterator<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for PostingIterator<'a> {}
+impl<'a> ExactSizeIterator for PostingDecoder<'a> {}
 
 impl<'a> Iterator for PostingDecoder<'a> {
     type Item = Posting;
@@ -160,12 +160,29 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
     }
 }
 
-pub fn get_intersection_size(mut lhs: PostingIterator, mut rhs: PostingIterator) -> usize {
+pub fn get_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
+    let mut lhs = match lhs {
+        PostingIterator::Empty => return 0,
+        PostingIterator::Decoder(decoder) => decoder
+    };
+    let mut rhs = match rhs {
+        PostingIterator::Empty => return 0,
+        PostingIterator::Decoder(decoder) => decoder
+    };
     intersection_size(&mut lhs, &mut rhs)
 }
 
 
 pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
+    let lhs = match lhs {
+        PostingIterator::Empty => return 0,
+        PostingIterator::Decoder(decoder) => decoder
+    };
+    let rhs = match rhs {
+        PostingIterator::Empty => return 0,
+        PostingIterator::Decoder(decoder) => decoder
+    };
+
     // Get the shorter one
     let (mut shorter, mut longer) = if lhs.len() < rhs.len() {
         (lhs, rhs)
@@ -192,79 +209,39 @@ macro_rules! unwrap_or_break{
     }
 }
 
-fn intersection_size_limit(shorter: &mut PostingIterator,
-                           longer: &mut PostingIterator,
+fn intersection_size_limit(shorter: &mut PostingDecoder,
+                           longer: &mut PostingDecoder,
                            limit: usize)
                            -> usize {
     let mut count = 0;
-    let mut l = if let Some(x) = shorter.next() {
-        x
-    } else {
-        return 0;
-    };
-    let mut r = if let Some(x) = longer.next() {
+    let mut focus = if let Some(x) = shorter.next()  {
         x
     } else {
         return 0;
     };
     for _ in 0..limit {
-        if l == r {
+        let r = unwrap_or_break!(longer.next_seek(&focus));
+        if r == focus {
             count += 1;
-            l = unwrap_or_break!(shorter.next());
-            r = unwrap_or_break!(longer.next());
-        }
-        while l != r {
-            if l < r {
-                l = if let Some(x) = shorter.next() {
-                    x
-                } else {
-                    return count;
-                };
-            } else {
-                r = if let Some(x) = longer.next() {
-                    x
-                } else {
-                    return count;
-                };
-            }
+            focus = unwrap_or_break!(shorter.next());
         }
     }
     count
 }
 
 
-fn intersection_size(shorter: &mut PostingIterator, longer: &mut PostingIterator) -> usize {
+fn intersection_size(shorter: &mut PostingDecoder, longer: &mut PostingDecoder) -> usize {
     let mut count = 0;
-    let mut l = if let Some(x) = shorter.next() {
-        x
-    } else {
-        return 0;
-    };
-    let mut r = if let Some(x) = longer.next() {
+    let mut focus = if let Some(x) = shorter.next()  {
         x
     } else {
         return 0;
     };
     loop {
-        if l == r {
+        let r = unwrap_or_break!(longer.next_seek(&focus));
+        if r == focus {
             count += 1;
-            l = unwrap_or_break!(shorter.next());
-            r = unwrap_or_break!(longer.next());
-        }
-        while l != r {
-            if l < r {
-                l = if let Some(x) = shorter.next() {
-                    x
-                } else {
-                    return count;
-                };
-            } else {
-                r = if let Some(x) = longer.next() {
-                    x
-                } else {
-                    return count;
-                };
-            }
+            focus = unwrap_or_break!(shorter.next());
         }
     }
     count
