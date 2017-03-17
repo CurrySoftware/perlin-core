@@ -1,3 +1,4 @@
+pub mod seeking_iterator;
 pub mod counter;
 pub mod ring_buffer;
 #[macro_use]
