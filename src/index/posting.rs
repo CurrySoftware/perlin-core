@@ -224,6 +224,12 @@ fn intersection_size_limit(shorter: &mut PostingDecoder,
         if r == focus {
             count += 1;
             focus = unwrap_or_break!(shorter.next());
+            continue;
+        } 
+        focus = unwrap_or_break!(shorter.next_seek(&r));
+        if r == focus {
+            count += 1;
+            focus = unwrap_or_break!(shorter.next());
         }
     }
     count
@@ -239,6 +245,12 @@ fn intersection_size(shorter: &mut PostingDecoder, longer: &mut PostingDecoder) 
     };
     loop {
         let r = unwrap_or_break!(longer.next_seek(&focus));
+        if r == focus {
+            count += 1;
+            focus = unwrap_or_break!(shorter.next());
+            continue;
+        }
+        focus = unwrap_or_break!(shorter.next_seek(&r));
         if r == focus {
             count += 1;
             focus = unwrap_or_break!(shorter.next());
