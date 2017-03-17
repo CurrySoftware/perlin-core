@@ -2,6 +2,7 @@ use compressor::Compressor;
 use page_manager::BlockIter;
 use utils::ring_buffer::BiasedRingBuffer;
 use utils::Baseable;
+use utils::seeking_iterator::SeekingIterator;
 use index::listing::UsedCompressor;
 
 const SAMPLING_THRESHOLD: usize = 200;
@@ -99,7 +100,7 @@ impl<'a> Iterator for PostingIterator<'a> {
     }
 }
 
-impl<'a> ExactSizeIterator for PostingIterator<'a> { }
+impl<'a> ExactSizeIterator for PostingIterator<'a> {}
 
 impl<'a> Iterator for PostingDecoder<'a> {
     type Item = Posting;
@@ -116,11 +117,46 @@ impl<'a> Iterator for PostingDecoder<'a> {
         self.posting_buffer.pop_front()
     }
 
-    //This will be wrong if either the compressor or the blocksize changes.
-    //Pay attention!
-    //TODO: Solve that independently of blocksize and compressor
+    // This will be wrong if either the compressor or the blocksize changes.
+    // Pay attention!
+    // TODO: Solve that independently of blocksize and compressor
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.bias_list.len() * 8, Some(self.bias_list.len() * 8))
+    }
+}
+
+
+impl<'a> SeekingIterator for PostingDecoder<'a> {
+    type Item = Posting;
+
+    fn next_seek(&mut self, other: &Self::Item) -> Option<Self::Item> {
+        // Check in what block we have to seek to
+        let index = match self.bias_list.binary_search(other) {
+            Err(index) => index,
+            Ok(index) => index,
+        };
+        // 3 possible outcomes:
+        // 1. the block was already iterated over: proceed
+        // 2. the block is currently beeing iterated: proceed
+        // 3. the block will be iterated over: Seek to it, then proceed
+        if index > self.bias_list_ptr {
+            // Case 3
+            let delta = index - self.bias_list_ptr;
+            // Flush posting buffer
+            // Get block
+            self.posting_buffer.flush();
+            // TODO: This is obviously not optimal. Fixit if necessary
+            for _ in 0..delta - 1 {
+                self.blocks.next();
+            }
+            self.bias_list_ptr += delta - 1;
+        }
+        loop {
+            let v = try_option!(self.next());
+            if v >= *other {
+                return Some(v);
+            }
+        }
     }
 }
 
@@ -130,15 +166,19 @@ pub fn get_intersection_size(mut lhs: PostingIterator, mut rhs: PostingIterator)
 
 
 pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
-    //Get the shorter one
-    let (mut shorter, mut longer) = if lhs.len() < rhs.len() { (lhs, rhs) } else { (rhs, lhs) };
+    // Get the shorter one
+    let (mut shorter, mut longer) = if lhs.len() < rhs.len() {
+        (lhs, rhs)
+    } else {
+        (rhs, lhs)
+    };
 
-    
+
     if shorter.len() < SAMPLING_THRESHOLD {
-        //Count
+        // Count
         intersection_size(&mut shorter, &mut longer)
     } else {
-        intersection_size_limit(&mut shorter, &mut longer, 100) * (shorter.len()/100)
+        intersection_size_limit(&mut shorter, &mut longer, 100) * (shorter.len() / 100)
     }
 }
 
@@ -152,19 +192,42 @@ macro_rules! unwrap_or_break{
     }
 }
 
-fn intersection_size_limit(shorter: &mut PostingIterator, longer: &mut PostingIterator, limit: usize) -> usize {
+fn intersection_size_limit(shorter: &mut PostingIterator,
+                           longer: &mut PostingIterator,
+                           limit: usize)
+                           -> usize {
     let mut count = 0;
+    let mut l = if let Some(x) = shorter.next() {
+        x
+    } else {
+        return 0;
+    };
+    let mut r = if let Some(x) = longer.next() {
+        x
+    } else {
+        return 0;
+    };
     for _ in 0..limit {
-        let mut l = unwrap_or_break!(shorter.next());
-        let mut r = unwrap_or_break!(longer.next());
+        if l == r {
+            count += 1;
+            l = unwrap_or_break!(shorter.next());
+            r = unwrap_or_break!(longer.next());
+        }
         while l != r {
             if l < r {
-                l = unwrap_or_break!(shorter.next());
+                l = if let Some(x) = shorter.next() {
+                    x
+                } else {
+                    return count;
+                };
             } else {
-                r = unwrap_or_break!(longer.next());
+                r = if let Some(x) = longer.next() {
+                    x
+                } else {
+                    return count;
+                };
             }
         }
-        count += 1;
     }
     count
 }
@@ -172,17 +235,37 @@ fn intersection_size_limit(shorter: &mut PostingIterator, longer: &mut PostingIt
 
 fn intersection_size(shorter: &mut PostingIterator, longer: &mut PostingIterator) -> usize {
     let mut count = 0;
+    let mut l = if let Some(x) = shorter.next() {
+        x
+    } else {
+        return 0;
+    };
+    let mut r = if let Some(x) = longer.next() {
+        x
+    } else {
+        return 0;
+    };
     loop {
-        let mut l = unwrap_or_break!(shorter.next());
-        let mut r = unwrap_or_break!(longer.next());
+        if l == r {
+            count += 1;
+            l = unwrap_or_break!(shorter.next());
+            r = unwrap_or_break!(longer.next());
+        }
         while l != r {
             if l < r {
-                l = unwrap_or_break!(shorter.next());
+                l = if let Some(x) = shorter.next() {
+                    x
+                } else {
+                    return count;
+                };
             } else {
-                r = unwrap_or_break!(longer.next());
+                r = if let Some(x) = longer.next() {
+                    x
+                } else {
+                    return count;
+                };
             }
         }
-        count += 1;
     }
     count
 }
@@ -212,6 +295,18 @@ mod tests {
         listing.commit(&mut cache);
         assert_eq!(listing.posting_decoder(&cache).collect::<Vec<_>>(),
                    vec![Posting(DocId(0))]);
+    }
+
+    #[test]
+    fn overcall() {
+        let mut cache = new_cache("overcall");
+        let mut listing = Listing::new();
+        listing.add(&[Posting(DocId(0))], &mut cache);
+        listing.commit(&mut cache);
+        let mut decoder = listing.posting_decoder(&cache);
+        assert_eq!(decoder.next(), Some(Posting(DocId(0))));
+        assert_eq!(decoder.next(), None);
+        assert_eq!(decoder.next(), None);
     }
 
     #[test]
@@ -281,16 +376,52 @@ mod tests {
         let mut cache = new_cache("intersection_size");
         let mut listing1 = Listing::new();
         let mut listing2 = Listing::new();
+        let mut listing3 = Listing::new();
         for i in 0..100 {
             listing1.add(&[Posting(DocId(i))], &mut cache);
             listing2.add(&[Posting(DocId(i))], &mut cache);
+            if i % 2 == 0 {
+                listing3.add(&[Posting(DocId(i))], &mut cache);
+            }
 
         }
         listing1.commit(&mut cache);
         listing2.commit(&mut cache);
+        listing3.commit(&mut cache);
 
-        assert_eq!(estimate_intersection_size(PostingIterator::Decoder(listing1.posting_decoder(&cache)), PostingIterator::Decoder(listing2.posting_decoder(&cache))), 100);
+        assert_eq!(
+            estimate_intersection_size(
+                PostingIterator::Decoder(listing1.posting_decoder(&cache)),
+                PostingIterator::Decoder(listing2.posting_decoder(&cache))), 100);
+
+        assert_eq!(
+            estimate_intersection_size(
+                PostingIterator::Decoder(listing1.posting_decoder(&cache)),
+                PostingIterator::Decoder(listing3.posting_decoder(&cache))), 50);
     }
 
+    #[test]
+    fn seeking() {
+        let mut cache = new_cache("seeking");
+        let mut listing1 = Listing::new();
+        for i in 0..100 {
+            listing1.add(&[Posting(DocId(i))], &mut cache);
+        }
+        listing1.commit(&mut cache);
+        let mut decoder = listing1.posting_decoder(&cache);
+        // Case 2
+        assert_eq!(decoder.next_seek(&Posting(DocId(5))),
+                   Some(Posting(DocId(5))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(6))),
+                   Some(Posting(DocId(6))));
+        // Case 3
+        assert_eq!(decoder.next_seek(&Posting(DocId(64))),
+                   Some(Posting(DocId(64))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(78))),
+                   Some(Posting(DocId(78))));
+        // Case 1
+        assert_eq!(decoder.next_seek(&Posting(DocId(18))),
+                   Some(Posting(DocId(79))));
+    }
 
 }

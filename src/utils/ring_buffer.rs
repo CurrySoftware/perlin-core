@@ -12,16 +12,20 @@ pub struct RingBuffer<T> {
     base: T,
 }
 
-impl<T: fmt::Debug> fmt::Debug for RingBuffer<T>{
+impl<T: fmt::Debug> fmt::Debug for RingBuffer<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        writeln!(f, "RingBuffer: {:?}, start: {}, count {}", &self.buff as &[T], self.start, self.count)
+        writeln!(f,
+                 "RingBuffer: {:?}, start: {}, count {}",
+                 &self.buff as &[T],
+                 self.start,
+                 self.count)
     }
 }
 
 #[derive(Debug)]
-pub struct BiasedRingBuffer<T>{
+pub struct BiasedRingBuffer<T> {
     buff: RingBuffer<T>,
-    base: T
+    base: T,
 }
 
 impl<T> BiasedRingBuffer<T>
@@ -30,24 +34,27 @@ impl<T> BiasedRingBuffer<T>
     pub fn new() -> Self {
         BiasedRingBuffer {
             buff: RingBuffer::new(),
-            base: T::default()
+            base: T::default(),
         }
     }
-    
+
     pub fn pop_front_biased(&mut self) -> Option<T> {
-        self.buff.pop_front().map(|mut e| {e.base_on(&self.base); e})
+        self.buff.pop_front().map(|mut e| {
+                                      e.base_on(&self.base);
+                                      e
+                                  })
     }
 }
 
 impl<T> DerefMut for BiasedRingBuffer<T> {
-    fn deref_mut(&mut self) -> &mut RingBuffer<T>{
+    fn deref_mut(&mut self) -> &mut RingBuffer<T> {
         &mut self.buff
     }
 }
 
 impl<T> Deref for BiasedRingBuffer<T> {
     type Target = RingBuffer<T>;
-    fn deref(&self) -> &RingBuffer<T>{
+    fn deref(&self) -> &RingBuffer<T> {
         &self.buff
     }
 }
@@ -74,6 +81,12 @@ impl<T> RingBuffer<T> {
         }
     }
 
+    #[inline]
+    pub fn flush(&mut self) {
+        self.start = 0;
+        self.count = 0;
+    }
+
     pub fn push_back(&mut self, element: T) {
         debug_assert!(self.count < SIZE);
         self.buff[(self.start + self.count) % SIZE] = element;
@@ -87,12 +100,12 @@ impl<T> RingBuffer<T> {
             self.count -= 1;
             self.start += 1;
             self.start %= SIZE;
-            element                
+            element
         } else {
             None
         }
     }
-    
+
     pub fn peek_front(&self) -> Option<&T> {
         if self.count > 0 {
             Some(&self.buff[self.start])
@@ -185,5 +198,18 @@ mod tests {
     fn empty() {
         let mut buffer = RingBuffer::<usize>::new();
         assert_eq!(buffer.pop_front(), None);
+    }
+
+    #[test]
+    fn flush() {
+        let mut buffer = RingBuffer::new();
+        buffer.push_back(10);
+        buffer.push_back(9);
+        assert_eq!(buffer.count(), 2);
+        assert_eq!(buffer.pop_front(), Some(10));
+        assert_eq!(buffer.count(), 1);
+        buffer.flush();
+        assert_eq!(buffer.pop_front(), None);
+        assert!(buffer.is_empty());
     }
 }

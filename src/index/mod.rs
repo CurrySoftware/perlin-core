@@ -124,7 +124,6 @@ impl<TTerm> Index<TTerm>
 
     pub fn query_term(&self, term_id: &TermId) -> PostingIterator {
         if let Some(listing) = self.listings.get(term_id) {
-            println!("Found term id");
             return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
         }
         PostingIterator::Empty
