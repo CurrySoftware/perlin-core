@@ -44,7 +44,7 @@ impl<T: Copy> Clone for BiasedRingBuffer<T> {
 }
 
 impl<T> BiasedRingBuffer<T>
-    where T: for<'x> Baseable<&'x T> + Default
+    where T: for<'x> Baseable<&'x T> + Default + Copy
 {
     pub fn new() -> Self {
         BiasedRingBuffer {
@@ -95,7 +95,7 @@ impl<T> AsMut<RingBuffer<T>> for BiasedRingBuffer<T> {
     }
 }
 
-impl<T> RingBuffer<T> {
+impl<T: Copy> RingBuffer<T> {
     pub fn new() -> Self {
         RingBuffer {
             buff: unsafe { mem::uninitialized() },
@@ -118,8 +118,7 @@ impl<T> RingBuffer<T> {
 
     pub fn pop_front(&mut self) -> Option<T> {
         if self.count > 0 {
-            let element = Some(mem::replace(&mut self.buff[self.start],
-                                            unsafe { mem::uninitialized() }));
+            let element = Some(self.buff[self.start]);
             self.count -= 1;
             self.start += 1;
             self.start %= SIZE;
