@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use page_manager::{Pages, Page, PageId, BlockId, Block, RamPageCache, PageCache};
 
+#[derive(Clone)]
 pub struct BlockIter<'a> {
     cache: &'a RamPageCache,
     current_page: Arc<Page>,

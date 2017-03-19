@@ -5,7 +5,7 @@ use utils::counter::Counter;
 use page_manager::{FsPageManager, UnfullPage, Page, Block, BlockManager, PageStore, PageId,
                    BlockId, PageCache};
 
-const CACHESIZE: usize = 1;
+const CACHESIZE: usize = 16;
 
 #[derive(Debug)]
 pub struct RamPageCache {

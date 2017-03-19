@@ -66,6 +66,7 @@ impl<'a> Baseable<&'a Posting> for Posting {
 
 /// Wraps the Decoder around an enum.
 /// For the possibility of an empty decoder
+#[derive(Clone)]
 pub enum PostingIterator<'a> {
     Empty,
     Decoder(PostingDecoder<'a>),
@@ -73,6 +74,7 @@ pub enum PostingIterator<'a> {
 
 /// Takes a block iterator and a list of biases and iterates over the resulting
 /// postings
+#[derive(Clone)]
 pub struct PostingDecoder<'a> {
     posting_buffer: BiasedRingBuffer<Posting>,
     bias_list_ptr: usize,
@@ -181,7 +183,7 @@ pub fn get_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usiz
 }
 
 
-pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
+pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator, sample_size: usize) -> usize {
     let lhs = match lhs {
         PostingIterator::Empty => return 0,
         PostingIterator::Decoder(decoder) => decoder,
@@ -203,7 +205,7 @@ pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator) ->
         // Count
         intersection_size(&mut shorter, &mut longer)
     } else {
-        intersection_size_limit(&mut shorter, &mut longer, 128) * (shorter.len() / 128)
+        intersection_size_limit(&mut shorter, &mut longer, sample_size) * (shorter.len() / sample_size)
     }
 }
 
@@ -389,12 +391,12 @@ mod tests {
         assert_eq!(
             estimate_intersection_size(
                 PostingIterator::Decoder(listing1.posting_decoder(&cache)),
-                PostingIterator::Decoder(listing2.posting_decoder(&cache))), 100);
+                PostingIterator::Decoder(listing2.posting_decoder(&cache)), 100), 100);
 
         assert_eq!(
             estimate_intersection_size(
                 PostingIterator::Decoder(listing1.posting_decoder(&cache)),
-                PostingIterator::Decoder(listing3.posting_decoder(&cache))), 50);
+                PostingIterator::Decoder(listing3.posting_decoder(&cache)), 100), 50);
     }
 
     #[test]

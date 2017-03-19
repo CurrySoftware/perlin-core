@@ -5,6 +5,7 @@ use utils::Baseable;
 
 const SIZE: usize = 64;
 
+#[derive(Copy)]
 pub struct RingBuffer<T> {
     buff: [T; SIZE],
     start: usize,
@@ -21,10 +22,25 @@ impl<T: fmt::Debug> fmt::Debug for RingBuffer<T> {
     }
 }
 
+impl<T: Copy + Clone> Clone for RingBuffer<T> {
+    fn clone(&self) -> RingBuffer<T> {
+        *self
+    }
+}
+
 #[derive(Debug)]
 pub struct BiasedRingBuffer<T> {
     buff: RingBuffer<T>,
     base: T,
+}
+
+impl<T: Copy> Clone for BiasedRingBuffer<T> {
+    fn clone(&self) -> BiasedRingBuffer<T> {
+        BiasedRingBuffer {
+            buff: self.buff.clone(),
+            base: self.base,
+        }
+    }
 }
 
 impl<T> BiasedRingBuffer<T>
