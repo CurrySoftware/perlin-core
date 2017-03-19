@@ -65,10 +65,10 @@ pub enum PostingIterator<'a> {
 /// Takes a block iterator and a list of biases and iterates over the resulting
 /// postings
 pub struct PostingDecoder<'a> {
-    blocks: BlockIter<'a>,
-    bias_list: &'a [Posting],
-    bias_list_ptr: usize,
     posting_buffer: BiasedRingBuffer<Posting>,
+    bias_list_ptr: usize,
+    bias_list: &'a [Posting],
+    blocks: BlockIter<'a>,
 }
 
 impl<'a> PostingDecoder<'a> {
@@ -114,7 +114,7 @@ impl<'a> Iterator for PostingDecoder<'a> {
                 UsedCompressor::decompress(block, &mut self.posting_buffer);
             }
         }
-        self.posting_buffer.pop_front()
+        self.posting_buffer.pop_front_biased()
     }
 
     // This will be wrong if either the compressor or the blocksize changes.
@@ -131,7 +131,7 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
 
     fn next_seek(&mut self, other: &Self::Item) -> Option<Self::Item> {
         // Check in what block we have to seek to
-        let index = match self.bias_list.binary_search(other) {
+        let index = match self.bias_list[self.bias_list_ptr..].binary_search(other) {
             Err(index) => index,
             Ok(index) => index,
         };
@@ -139,17 +139,16 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
         // 1. the block was already iterated over: proceed
         // 2. the block is currently beeing iterated: proceed
         // 3. the block will be iterated over: Seek to it, then proceed
-        if index > self.bias_list_ptr {
+        if index > 0 {
             // Case 3
-            let delta = index - self.bias_list_ptr;
             // Flush posting buffer
-            // Get block
             self.posting_buffer.flush();
+            // Get block
             // TODO: This is obviously not optimal. Fixit if necessary
-            for _ in 0..delta - 1 {
+            for _ in 0..index - 1 {
                 self.blocks.next();
             }
-            self.bias_list_ptr += delta - 1;
+            self.bias_list_ptr += index - 1;
         }
         loop {
             let v = try_option!(self.next());
@@ -195,7 +194,7 @@ pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator) ->
         // Count
         intersection_size(&mut shorter, &mut longer)
     } else {
-        intersection_size_limit(&mut shorter, &mut longer, 100) * (shorter.len() / 100)
+        intersection_size_limit(&mut shorter, &mut longer, 128) * (shorter.len() / 128)
     }
 }
 
