@@ -77,7 +77,6 @@ pub enum PostingIterator<'a> {
 #[derive(Clone)]
 pub struct PostingDecoder<'a> {
     posting_buffer: BiasedRingBuffer<Posting>,
-    bias_list_ptr: usize,
     bias_list: &'a [Posting],
     blocks: BlockIter<'a>,
 }
@@ -87,7 +86,6 @@ impl<'a> PostingDecoder<'a> {
         PostingDecoder {
             blocks: blocks,
             bias_list: bias_list,
-            bias_list_ptr: 0,
             posting_buffer: BiasedRingBuffer::new(),
         }
     }
@@ -119,8 +117,8 @@ impl<'a> Iterator for PostingDecoder<'a> {
     fn next(&mut self) -> Option<Posting> {
         if self.posting_buffer.is_empty() {
             if let Some(block) = self.blocks.next() {
-                let bias = self.bias_list[self.bias_list_ptr];
-                self.bias_list_ptr += 1;
+                let bias = self.bias_list[0];
+                self.bias_list = &self.bias_list[1..];
                 self.posting_buffer.set_base(bias);
                 UsedCompressor::decompress(block, &mut self.posting_buffer);
             }
@@ -141,8 +139,8 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
     type Item = Posting;
 
     fn next_seek(&mut self, other: &Self::Item) -> Option<Self::Item> {
-        // Check in what block we have to seek to
-        let index = match self.bias_list[self.bias_list_ptr..].binary_search(other) {
+        //Check in what block we have to seek to
+        let index = match self.bias_list.binary_search(other) {
             Err(index) => index,
             Ok(index) => index,
         };
@@ -155,11 +153,10 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
             // Flush posting buffer
             self.posting_buffer.flush();
             // Get block
-            // TODO: This is obviously not optimal. Fixit if necessary
-            for _ in 0..index - 1 {
-                self.blocks.next();
+            if index > 1 {
+                self.blocks.skip_blocks(index-1);
+                self.bias_list = &self.bias_list[index-1..];
             }
-            self.bias_list_ptr += index - 1;
         }
         loop {
             let v = try_option!(self.next());
