@@ -163,11 +163,11 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
 pub fn get_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
     let mut lhs = match lhs {
         PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder
+        PostingIterator::Decoder(decoder) => decoder,
     };
     let mut rhs = match rhs {
         PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder
+        PostingIterator::Decoder(decoder) => decoder,
     };
     intersection_size(&mut lhs, &mut rhs)
 }
@@ -176,11 +176,11 @@ pub fn get_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usiz
 pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
     let lhs = match lhs {
         PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder
+        PostingIterator::Decoder(decoder) => decoder,
     };
     let rhs = match rhs {
         PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder
+        PostingIterator::Decoder(decoder) => decoder,
     };
 
     // Get the shorter one
@@ -214,7 +214,7 @@ fn intersection_size_limit(shorter: &mut PostingDecoder,
                            limit: usize)
                            -> usize {
     let mut count = 0;
-    let mut focus = if let Some(x) = shorter.next()  {
+    let mut focus = if let Some(x) = shorter.next() {
         x
     } else {
         return 0;
@@ -225,7 +225,7 @@ fn intersection_size_limit(shorter: &mut PostingDecoder,
             count += 1;
             focus = unwrap_or_break!(shorter.next());
             continue;
-        } 
+        }
         focus = unwrap_or_break!(shorter.next_seek(&r));
         if r == focus {
             count += 1;
@@ -238,7 +238,7 @@ fn intersection_size_limit(shorter: &mut PostingDecoder,
 
 fn intersection_size(shorter: &mut PostingDecoder, longer: &mut PostingDecoder) -> usize {
     let mut count = 0;
-    let mut focus = if let Some(x) = shorter.next()  {
+    let mut focus = if let Some(x) = shorter.next() {
         x
     } else {
         return 0;
