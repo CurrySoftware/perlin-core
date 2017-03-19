@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use page_manager::{Pages, Page, PageId, BlockId, Block, RamPageCache, PageCache};
+use page_manager::{Pages, Page, PageId, BlockId, Block, RamPageCache, PageCache, PAGESIZE};
 
 #[derive(Clone)]
 pub struct BlockIter<'a> {
@@ -35,6 +35,17 @@ impl<'a> BlockIter<'a> {
             None
         }
     }
+
+    pub fn skip_blocks(&mut self, by: usize) {
+        let pages = by / PAGESIZE;
+        self.block_counter = BlockId(((self.block_counter.0 as usize + by) % PAGESIZE) as u16);
+        if pages > 0 {
+            for _ in 0..pages-1 {
+                self.next_page_id();
+            }
+            self.current_page = self.cache.get_page(self.next_page_id().unwrap());
+        }
+    }
 }
 
 impl<'a> Iterator for BlockIter<'a> {
@@ -43,8 +54,7 @@ impl<'a> Iterator for BlockIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         if self.block_counter == BlockId::first() {
             // Get new page
-            let page = self.cache.get_page(try_option!(self.next_page_id()));
-            self.current_page = page;
+            self.current_page = self.cache.get_page(try_option!(self.next_page_id()));
         }
         // Special case for last block:
         // 1. Unfull page has to exist
