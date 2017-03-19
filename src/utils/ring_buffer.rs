@@ -9,7 +9,6 @@ pub struct RingBuffer<T> {
     buff: [T; SIZE],
     start: usize,
     count: usize,
-    base: T,
 }
 
 impl<T: fmt::Debug> fmt::Debug for RingBuffer<T> {
@@ -40,9 +39,18 @@ impl<T> BiasedRingBuffer<T>
 
     pub fn pop_front_biased(&mut self) -> Option<T> {
         self.buff.pop_front().map(|mut e| {
-                                      e.base_on(&self.base);
+                                      e.sub_base(&self.base);
                                       e
                                   })
+    }
+
+    pub fn push_back_biased(&mut self, mut element: T) {
+        element.add_base(&self.base);
+        self.buff.push_back(element)
+    }
+
+    pub fn set_base(&mut self, base: T) {
+        self.base = base;
     }
 }
 
@@ -77,7 +85,6 @@ impl<T> RingBuffer<T> {
             buff: unsafe { mem::uninitialized() },
             start: 0,
             count: 0,
-            base: unsafe { mem::uninitialized() },
         }
     }
 
@@ -125,13 +132,6 @@ impl<T> RingBuffer<T> {
     }
 }
 
-impl<T> Baseable<T> for RingBuffer<T>
-    where T: for<'x> Baseable<&'x T>
-{
-    fn base_on(&mut self, base: T) {
-        self.base = base;
-    }
-}
 
 #[cfg(test)]
 mod tests {

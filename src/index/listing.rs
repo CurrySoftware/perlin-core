@@ -101,10 +101,12 @@ impl Listing {
                 let block_count = unfull_page.to().0 - unfull_page.from().0;
                 // build the block iter
                 let block_iter = BlockIter::new(page_cache, Pages(vec![], Some(unfull_page)));
+                // Set postings_buffer old base
+                self.posting_buffer.set_base(self.block_biases[self.block_biases.len() - block_count as usize]);
                 // Decode the postings through a decoder
                 PostingDecoder::new(block_iter,
                                     &self.block_biases[self.block_biases.len() -
-                                    block_count as usize..])
+                                     block_count as usize..])
                         .collect::<Vec<_>>()
             };
             self.block_counter = BlockId::first();
@@ -148,7 +150,7 @@ impl Listing {
             self.block_start = self.block_end;
         }
 
-        self.posting_buffer.base_on(self.block_start);
+        self.posting_buffer.set_base(self.block_start);
     }
 }
 

@@ -42,7 +42,7 @@ impl Compressor for NaiveCompressor {
         for num in &nums {
             let did = DocId(*num);
             if did != DocId::none() {
-                target.push_back(Posting(did));
+                target.push_back_biased(Posting(did));
             } else {
                 return;
             }

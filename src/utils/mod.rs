@@ -5,5 +5,6 @@ pub mod ring_buffer;
 pub mod try_option;
 
 pub trait Baseable<T> {
-    fn base_on(&mut self, T);
+    fn add_base(&mut self, T);
+    fn sub_base(&mut self, T);
 }

@@ -26,7 +26,12 @@ impl DocId {
 
 impl<'a> Baseable<&'a DocId> for DocId {
     #[inline]
-    fn base_on(&mut self, other: &Self) {
+    fn add_base(&mut self, other: &Self) {
+        self.0 += other.0
+    }
+
+    #[inline]
+    fn sub_base(&mut self, other: &Self) {
         self.0 -= other.0
     }
 }
@@ -50,8 +55,12 @@ impl Default for Posting {
 
 impl<'a> Baseable<&'a Posting> for Posting {
     #[inline]
-    fn base_on(&mut self, other: &Self) {
-        self.0.base_on(&other.0);
+    fn sub_base(&mut self, other: &Self) {
+        self.0.sub_base(&other.0);
+    }
+    #[inline]
+    fn add_base(&mut self, other: &Self) {
+        self.0.add_base(&other.0);
     }
 }
 
@@ -110,11 +119,11 @@ impl<'a> Iterator for PostingDecoder<'a> {
             if let Some(block) = self.blocks.next() {
                 let bias = self.bias_list[self.bias_list_ptr];
                 self.bias_list_ptr += 1;
-                self.posting_buffer.base_on(bias);
+                self.posting_buffer.set_base(bias);
                 UsedCompressor::decompress(block, &mut self.posting_buffer);
             }
         }
-        self.posting_buffer.pop_front_biased()
+        self.posting_buffer.pop_front()
     }
 
     // This will be wrong if either the compressor or the blocksize changes.
