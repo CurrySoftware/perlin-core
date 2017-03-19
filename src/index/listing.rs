@@ -41,7 +41,8 @@ impl Listing {
         }
         for (i, posting) in postings.iter().enumerate() {
             // Don't allow duplicate postings for documents
-            // If this test would not be here, term x could have multiple entries for one doc id
+            // If this test would not be here, term x could have multiple entries for one
+            // doc id
             // Like X: DocId(0) DocId(0) DocId(1)
             if !self.posting_buffer.is_empty() && self.block_end == *posting {
                 continue;
@@ -67,9 +68,9 @@ impl Listing {
     }
 
     /// Construct a posting decoder for this listing
-    pub fn posting_decoder<'a>(&self, cache: &'a RamPageCache) -> PostingDecoder<'a> {
+    pub fn posting_decoder<'a>(&'a self, cache: &'a RamPageCache) -> PostingDecoder<'a> {
         let block_iter = BlockIter::new(cache, self.pages.clone());
-        PostingDecoder::new(block_iter, self.block_biases.clone())
+        PostingDecoder::new(block_iter, &self.block_biases)
     }
 
     fn compress_and_ship(&mut self, page_cache: &mut RamPageCache, force: bool) {
@@ -85,7 +86,8 @@ impl Listing {
     /// This method is used when a previously commited listing is added to.
     /// It retrieves the last unfull page and rewinds to the state as of the
     /// last uncommited status.
-    /// e.g.: retrieve the postings of the unfull page and add them the usual way
+    /// e.g.: retrieve the postings of the unfull page and add them the usual
+    /// way
     ///
     /// Use with care...
     fn unravel_unfull(&mut self, page_cache: &mut RamPageCache) {
@@ -101,10 +103,9 @@ impl Listing {
                 let block_iter = BlockIter::new(page_cache, Pages(vec![], Some(unfull_page)));
                 // Decode the postings through a decoder
                 PostingDecoder::new(block_iter,
-                                     self.block_biases[self.block_biases.len() -
-                                                       block_count as usize..]
-                                         .to_vec())
-                    .collect::<Vec<_>>()
+                                    &self.block_biases[self.block_biases.len() -
+                                    block_count as usize..])
+                        .collect::<Vec<_>>()
             };
             self.block_counter = BlockId::first();
             self.add(&postings, page_cache);

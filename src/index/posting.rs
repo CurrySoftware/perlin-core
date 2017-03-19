@@ -66,13 +66,13 @@ pub enum PostingIterator<'a> {
 /// postings
 pub struct PostingDecoder<'a> {
     blocks: BlockIter<'a>,
-    bias_list: Vec<Posting>,
+    bias_list: &'a [Posting],
     bias_list_ptr: usize,
     posting_buffer: BiasedRingBuffer<Posting>,
 }
 
 impl<'a> PostingDecoder<'a> {
-    pub fn new(blocks: BlockIter<'a>, bias_list: Vec<Posting>) -> Self {
+    pub fn new(blocks: BlockIter<'a>, bias_list: &'a [Posting]) -> Self {
         PostingDecoder {
             blocks: blocks,
             bias_list: bias_list,
