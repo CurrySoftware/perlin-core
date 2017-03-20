@@ -71,6 +71,11 @@ impl Pages {
     pub fn unfull(&self) -> Option<UnfullPage> {
         self.1
     }
+
+    #[inline]
+    pub fn has_unfull(&self) -> bool {
+        self.1.is_some()
+    }
 }
 
 impl Default for Pages {

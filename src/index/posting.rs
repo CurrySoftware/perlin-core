@@ -123,7 +123,8 @@ impl<'a> Iterator for PostingDecoder<'a> {
                 UsedCompressor::decompress(block, &mut self.posting_buffer);
             }
         }
-        self.posting_buffer.pop_front()
+        let a = self.posting_buffer.pop_front();
+        a
     }
 
     // This will be wrong if either the compressor or the blocksize changes.
@@ -139,7 +140,7 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
     type Item = Posting;
 
     fn next_seek(&mut self, other: &Self::Item) -> Option<Self::Item> {
-        //Check in what block we have to seek to
+        // Check in what block we have to seek to
         let index = match self.bias_list.binary_search(other) {
             Err(index) => index,
             Ok(index) => index,
@@ -153,9 +154,9 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
             // Flush posting buffer
             self.posting_buffer.flush();
             // Get block
-            if index > 1 {
-                self.blocks.skip_blocks(index-1);
-                self.bias_list = &self.bias_list[index-1..];
+            if index > 1 {                
+                self.blocks.skip_blocks(index - 1);
+                self.bias_list = &self.bias_list[index - 1..];
             }
         }
         loop {
@@ -180,7 +181,10 @@ pub fn get_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usiz
 }
 
 
-pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator, sample_size: usize) -> usize {
+pub fn estimate_intersection_size(lhs: PostingIterator,
+                                  rhs: PostingIterator,
+                                  sample_size: usize)
+                                  -> usize {
     let lhs = match lhs {
         PostingIterator::Empty => return 0,
         PostingIterator::Decoder(decoder) => decoder,
@@ -202,7 +206,8 @@ pub fn estimate_intersection_size(lhs: PostingIterator, rhs: PostingIterator, sa
         // Count
         intersection_size(&mut shorter, &mut longer)
     } else {
-        intersection_size_limit(&mut shorter, &mut longer, sample_size) * (shorter.len() / sample_size)
+        intersection_size_limit(&mut shorter, &mut longer, sample_size) *
+        (shorter.len() / sample_size)
     }
 }
 
@@ -418,6 +423,29 @@ mod tests {
         // Case 1
         assert_eq!(decoder.next_seek(&Posting(DocId(18))),
                    Some(Posting(DocId(79))));
+
+        // Overseek
+        assert_eq!(decoder.next_seek(&Posting(DocId(200))), None);
+    }
+
+    #[test]
+    fn multipage_seeking() {
+        let mut cache = new_cache("multipage_seeking");
+        let mut listing1 = Listing::new();
+        for i in (0..100_000).map(|i| i * 7) {
+            listing1.add(&[Posting(DocId(i))], &mut cache);
+        }
+        listing1.commit(&mut cache);
+        let mut decoder = listing1.posting_decoder(&cache);
+
+        // assert_eq!(decoder.next(), Some(Posting(DocId(0))));
+        // assert_eq!(decoder.next(), Some(Posting(DocId(7))));
+        // assert_eq!(decoder.next_seek(&Posting(DocId(7000))), Some(Posting(DocId(7000))));
+        // assert_eq!(decoder.next_seek(&Posting(DocId(14001))), Some(Posting(DocId(14007))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(699_993))), Some(Posting(DocId(699_993))));
+        println!("Ok!");
+        assert_eq!(decoder.next(), None);
+        //assert_eq!(decoder.next_seek(&Posting(DocId(700_000))), Some(Posting(DocId(700_000))));        
     }
 
 }

@@ -1,5 +1,4 @@
 use utils::ring_buffer::BiasedRingBuffer;
-use utils::Baseable;
 
 use compressor::{Compressor, NaiveCompressor};
 
