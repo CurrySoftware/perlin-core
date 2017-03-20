@@ -438,14 +438,13 @@ mod tests {
         listing1.commit(&mut cache);
         let mut decoder = listing1.posting_decoder(&cache);
 
-        // assert_eq!(decoder.next(), Some(Posting(DocId(0))));
-        // assert_eq!(decoder.next(), Some(Posting(DocId(7))));
-        // assert_eq!(decoder.next_seek(&Posting(DocId(7000))), Some(Posting(DocId(7000))));
-        // assert_eq!(decoder.next_seek(&Posting(DocId(14001))), Some(Posting(DocId(14007))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(0))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(7))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(7000))), Some(Posting(DocId(7000))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(14001))), Some(Posting(DocId(14007))));
         assert_eq!(decoder.next_seek(&Posting(DocId(699_993))), Some(Posting(DocId(699_993))));
-        println!("Ok!");
         assert_eq!(decoder.next(), None);
-        //assert_eq!(decoder.next_seek(&Posting(DocId(700_000))), Some(Posting(DocId(700_000))));        
+        assert_eq!(decoder.next_seek(&Posting(DocId(14001))), None);
     }
 
 }

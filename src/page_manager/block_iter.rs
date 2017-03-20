@@ -36,8 +36,8 @@ impl<'a> BlockIter<'a> {
     }
 
     pub fn skip_blocks(&mut self, by: usize) {
-        let pages = by / PAGESIZE;
-        // Inc page_ptr
+        let pages = (by + self.block_counter.0 as usize) / PAGESIZE;
+        // Inc page_ptr        
         self.page_ptr += pages;
         // inc block_counter (wraps around PAGESIZE)
         self.block_counter = BlockId(((self.block_counter.0 as usize + by) % PAGESIZE) as u16);
@@ -59,7 +59,6 @@ impl<'a> BlockIter<'a> {
                 // Not an unfull page. Blockcounter will be fine
                 self.current_page = self.cache.get_page(self.next_page_id().unwrap());
             }
-            self.page_ptr += 1;
         }
     }
 }
@@ -71,12 +70,11 @@ impl<'a> Iterator for BlockIter<'a> {
         if self.block_counter == BlockId::first() {
             // Get new page
             self.current_page = self.cache.get_page(try_option!(self.next_page_id()));
-            self.page_ptr += 1;
         }
         // Special case for last block:
         // 1. Unfull page has to exist
         // 2. BlockCounter must be >= unfull_page.to()
-        if self.page_ptr == self.pages.len() && self.pages.1.is_some() &&
+        if self.page_ptr == self.pages.len() -1 && self.pages.1.is_some() &&
            self.block_counter >=
            self.pages
                .1
@@ -86,6 +84,9 @@ impl<'a> Iterator for BlockIter<'a> {
         }
         let res = Some(self.current_page[self.block_counter]);
         self.block_counter.inc();
+        if self.block_counter == BlockId::first() {
+            self.page_ptr += 1;
+        }
         res
     }
 }
