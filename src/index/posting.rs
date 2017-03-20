@@ -109,6 +109,8 @@ impl<'a> Iterator for PostingIterator<'a> {
     }
 }
 
+impl<'a> ExactSizeIterator for PostingIterator<'a> {}
+
 impl<'a> ExactSizeIterator for PostingDecoder<'a> {}
 
 impl<'a> Iterator for PostingDecoder<'a> {
