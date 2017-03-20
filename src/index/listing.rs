@@ -50,8 +50,8 @@ impl Listing {
             // set the new block end
             self.block_end = *posting;
             self.posting_buffer.push_back(*posting);
-            if i % 8 == 0 {
-                // Check if we can compress and ship a block every 8 items
+            if i % 16 == 0 {
+                // Check if we can compress and ship a block every 16 items
                 self.compress_and_ship(page_cache, false);
             }
         }

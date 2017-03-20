@@ -40,7 +40,7 @@ impl<'a> BlockIter<'a> {
         let pages = by / PAGESIZE;
         self.block_counter = BlockId(((self.block_counter.0 as usize + by) % PAGESIZE) as u16);
         if pages > 0 {
-            for _ in 0..pages-1 {
+            for _ in 0..pages - 1 {
                 self.next_page_id();
             }
             self.current_page = self.cache.get_page(self.next_page_id().unwrap());
@@ -60,7 +60,11 @@ impl<'a> Iterator for BlockIter<'a> {
         // 1. Unfull page has to exist
         // 2. BlockCounter must be >= unfull_page.to()
         if self.page_counter == self.pages.len() && self.pages.1.is_some() &&
-           self.block_counter >= self.pages.1.map(|unfull_page| unfull_page.to()).unwrap() {
+           self.block_counter >=
+           self.pages
+               .1
+               .map(|unfull_page| unfull_page.to())
+               .unwrap() {
             return None;
         }
         let res = Some(self.current_page[self.block_counter]);
@@ -75,8 +79,8 @@ mod tests {
     use test_utils::create_test_dir;
 
     use super::BlockIter;
-    use page_manager::{UnfullPage, RamPageCache, BlockManager, FsPageManager, Pages, PageId,
-                       Block, BlockId, BLOCKSIZE, PAGESIZE};
+    use page_manager::{UnfullPage, RamPageCache, BlockManager, FsPageManager, Pages, PageId, Block,
+                       BlockId, BLOCKSIZE, PAGESIZE};
 
 
 
@@ -165,11 +169,11 @@ mod tests {
         for i in 1..PAGESIZE - 1 {
             cache.store_in_place(PageId(0),
                                  BlockId(i as u16),
-                                 Block([(i % 255) as u8; BLOCKSIZE]));            
+                                 Block([(i % 255) as u8; BLOCKSIZE]));
         }
         let unfull_page = cache.flush_unfull(PageId(0), BlockId::last());
         let mut iter = BlockIter::new(&cache, Pages(Vec::new(), Some(unfull_page)));
-        for i in 0..PAGESIZE -1 {
+        for i in 0..PAGESIZE - 1 {
             assert_eq!(iter.next(), Some(Block([(i % 255) as u8; BLOCKSIZE])));
         }
         assert_eq!(iter.next(), None);
@@ -177,7 +181,7 @@ mod tests {
 
     #[test]
     fn multiple_readers() {
-        let mut cache = new_cache("basic");
+        let mut cache = new_cache("multiple_readers");
         for i in 0..2048 {
             assert_eq!(cache.store_block(Block([(i % 255) as u8; BLOCKSIZE])),
                        PageId(i));
@@ -201,6 +205,34 @@ mod tests {
                 assert_eq!(iter2.next(), Some(Block([(j % 255) as u8; BLOCKSIZE])));
             }
         }
+    }
+
+    #[test]
+    fn skip_blocks() {
+        let mut cache = new_cache("skip_blocks");
+        //Fill 2048 pages
+        for i in 0..2048 {
+            assert_eq!(cache.store_block(Block([(i % 255) as u8; BLOCKSIZE])),
+                       PageId(i));
+            for j in 1..PAGESIZE {
+                cache.store_in_place(PageId(i),
+                                     BlockId(j as u16),
+                                     Block([(j % 255) as u8; BLOCKSIZE]));
+            }
+            cache.flush_page(PageId(i));
+        }
+        
+        let pages = Pages((0..2048).map(|i| PageId(i)).collect::<Vec<_>>(), None);
+        let mut iter = BlockIter::new(&cache, pages);
+        assert_eq!(iter.next(), Some(Block([0; BLOCKSIZE])));
+        iter.skip_blocks(15);
+        assert_eq!(iter.next(), Some(Block([16; BLOCKSIZE])));
+        iter.skip_blocks(63);
+        assert_eq!(iter.next(), Some(Block([16; BLOCKSIZE])));
+        iter.skip_blocks(128);
+        assert_eq!(iter.next(), Some(Block([17; BLOCKSIZE])));
+        iter.skip_blocks(1);
+        assert_eq!(iter.next(), Some(Block([19; BLOCKSIZE])));
     }
 
 }
