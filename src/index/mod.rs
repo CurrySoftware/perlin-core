@@ -188,7 +188,7 @@ mod tests {
     fn extended_indexing() {
         let mut index = new_index("extended_indexing");
         for i in 0..200 {
-            assert_eq!(index.index_document((i..i + 200), None), DocId(i as u64));
+            assert_eq!(index.index_document((i..i + 200), None), DocId(i as u32));
         }
         index.commit();
 
@@ -202,7 +202,7 @@ mod tests {
     fn mutable_index() {
         let mut index = new_index("mutable_index");
         for i in 0..200 {
-            assert_eq!(index.index_document((i..i + 200), None), DocId(i as u64));
+            assert_eq!(index.index_document((i..i + 200), None), DocId(i as u32));
         }
         index.commit();
 
@@ -229,12 +229,12 @@ mod tests {
         for i in 0..200 {
             if i % 2 == 0 {
                 assert_eq!(index1.index_document((i..i + 200).filter(|i| i % 2 == 0),
-                                                 Some(DocId(i as u64))),
-                           DocId(i as u64));
+                                                 Some(DocId(i as u32))),
+                           DocId(i as u32));
             } else {
                 assert_eq!(index2.index_document((i..i + 200).filter(|i| i % 2 != 0),
-                                                 Some(DocId(i as u64))),
-                           DocId(i as u64));
+                                                 Some(DocId(i as u32))),
+                           DocId(i as u32));
             }
         }
         index1.commit();

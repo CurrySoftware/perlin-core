@@ -10,12 +10,12 @@ const SAMPLING_THRESHOLD: usize = 200;
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone)]
 pub struct Posting(pub DocId);
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone)]
-pub struct DocId(pub u64);
+pub struct DocId(pub u32);
 
 impl DocId {
     #[inline]
     pub fn none() -> DocId {
-        DocId(u64::max_value())
+        DocId(u32::max_value())
     }
 
     #[inline]
@@ -117,9 +117,9 @@ impl<'a> Iterator for PostingDecoder<'a> {
     fn next(&mut self) -> Option<Posting> {
         if self.posting_buffer.is_empty() {
             if let Some(block) = self.blocks.next() {
-                let bias = self.bias_list[0];
-                self.bias_list = &self.bias_list[1..];
-                self.posting_buffer.set_base(bias);
+                let (bias, rest) = self.bias_list.split_first().unwrap();
+                self.bias_list = rest;
+                self.posting_buffer.set_base(*bias);
                 UsedCompressor::decompress(block, &mut self.posting_buffer);
             }
         }
@@ -130,7 +130,7 @@ impl<'a> Iterator for PostingDecoder<'a> {
     // Pay attention!
     // TODO: Solve that independently of blocksize and compressor
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.bias_list.len() * 8, Some(self.bias_list.len() * 8))
+        (self.bias_list.len() * 16, Some(self.bias_list.len() * 16))
     }
 }
 

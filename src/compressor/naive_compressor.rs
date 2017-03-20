@@ -13,12 +13,12 @@ impl Compressor for NaiveCompressor {
     fn compress(data: &mut BiasedRingBuffer<Posting>) -> Option<Block>
         where Posting: for<'x> Baseable<&'x Posting>
     {
-        if data.count() >= BLOCKSIZE / 8 {
+        if data.count() >= BLOCKSIZE / 4 {
             // Enough in there to fill the block
             let mut block = [0u8; BLOCKSIZE];
-            for i in 0..BLOCKSIZE / 8 {
-                block[i * 8..(i * 8) + 8].copy_from_slice(unsafe {
-                    &mem::transmute::<Posting, [u8; 8]>(data.pop_front_biased().unwrap())
+            for i in 0..BLOCKSIZE / 4 {
+                block[i * 4..(i * 4) + 4].copy_from_slice(unsafe {
+                    &mem::transmute::<Posting, [u8; 4]>(data.pop_front_biased().unwrap())
                 });
             }
             Some(Block(block))
@@ -29,16 +29,16 @@ impl Compressor for NaiveCompressor {
 
     fn force_compress(data: &mut BiasedRingBuffer<Posting>) -> Block {
         let mut block = [0u8; BLOCKSIZE];
-        for i in 0..BLOCKSIZE / 8 {
+        for i in 0..BLOCKSIZE / 4 {
             let posting = data.pop_front_biased().unwrap_or_else(|| Posting(DocId::none()));
-            block[i * 8..(i * 8) + 8]
-                .copy_from_slice(unsafe { &mem::transmute::<Posting, [u8; 8]>(posting) });
+            block[i * 4..(i * 4) + 4]
+                .copy_from_slice(unsafe { &mem::transmute::<Posting, [u8; 4]>(posting) });
         }
         Block(block)
     }
 
     fn decompress(data: Block, target: &mut BiasedRingBuffer<Posting>) {
-        let nums: [u64; BLOCKSIZE / 8] = unsafe { mem::transmute(data) };
+        let nums: [u32; BLOCKSIZE / 4] = unsafe { mem::transmute(data) };
         for num in &nums {
             let did = DocId(*num);
             if did != DocId::none() {
@@ -64,8 +64,8 @@ mod tests {
     fn compress() {
         let mut buffer = BiasedRingBuffer::<Posting>::new();
         assert_eq!(NaiveCompressor::compress(&mut buffer), None);
-        for i in 0..BLOCKSIZE / 8 {
-            buffer.push_back(Posting(DocId(i as u64)));
+        for i in 0..BLOCKSIZE / 4 {
+            buffer.push_back(Posting(DocId(i as u32)));
         }
         assert!(NaiveCompressor::compress(&mut buffer).is_some());
         assert_eq!(buffer.count(), 0);
@@ -75,14 +75,14 @@ mod tests {
     fn decompress() {
         let mut buffer = BiasedRingBuffer::<Posting>::new();
         assert_eq!(NaiveCompressor::compress(&mut buffer), None);
-        for i in 0..BLOCKSIZE / 8 {
-            buffer.push_back(Posting(DocId(i as u64)));
+        for i in 0..BLOCKSIZE / 4 {
+            buffer.push_back(Posting(DocId(i as u32)));
         }
         let block = NaiveCompressor::compress(&mut buffer).unwrap();
         assert_eq!(buffer.count(), 0);
         NaiveCompressor::decompress(block, &mut buffer);
-        for i in 0..BLOCKSIZE / 8 {
-            assert_eq!(buffer.pop_front().unwrap(), Posting(DocId(i as u64)));
+        for i in 0..BLOCKSIZE / 4 {
+            assert_eq!(buffer.pop_front().unwrap(), Posting(DocId(i as u32)));
         }
     }
 

@@ -231,7 +231,7 @@ mod tests {
         let mut cache = new_cache("multiple_listings");
         let mut listings = (0..100).map(|_| Listing::new()).collect::<Vec<_>>();
         for i in 0..50000 {
-            listings[i % 100].add(&[Posting(DocId(i as u64))], &mut cache);
+            listings[i % 100].add(&[Posting(DocId(i as u32))], &mut cache);
         }
         for listing in listings.iter_mut() {
             assert!(listing.posting_buffer.count() > 0);
