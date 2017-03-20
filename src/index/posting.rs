@@ -66,7 +66,7 @@ impl<'a> Baseable<&'a Posting> for Posting {
 
 /// Wraps the Decoder around an enum.
 /// For the possibility of an empty decoder
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum PostingIterator<'a> {
     Empty,
     Decoder(PostingDecoder<'a>),
@@ -74,7 +74,7 @@ pub enum PostingIterator<'a> {
 
 /// Takes a block iterator and a list of biases and iterates over the resulting
 /// postings
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PostingDecoder<'a> {
     posting_buffer: BiasedRingBuffer<Posting>,
     bias_list: &'a [Posting],
@@ -156,7 +156,7 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
             // Flush posting buffer
             self.posting_buffer.flush();
             // Get block
-            if index > 1 {                
+            if index > 1 {
                 self.blocks.skip_blocks(index - 1);
                 self.bias_list = &self.bias_list[index - 1..];
             }
@@ -442,11 +442,45 @@ mod tests {
 
         assert_eq!(decoder.next(), Some(Posting(DocId(0))));
         assert_eq!(decoder.next(), Some(Posting(DocId(7))));
-        assert_eq!(decoder.next_seek(&Posting(DocId(7000))), Some(Posting(DocId(7000))));
-        assert_eq!(decoder.next_seek(&Posting(DocId(14001))), Some(Posting(DocId(14007))));
-        assert_eq!(decoder.next_seek(&Posting(DocId(699_993))), Some(Posting(DocId(699_993))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(7000))),
+                   Some(Posting(DocId(7000))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(14001))),
+                   Some(Posting(DocId(14007))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(699_993))),
+                   Some(Posting(DocId(699_993))));
         assert_eq!(decoder.next(), None);
         assert_eq!(decoder.next_seek(&Posting(DocId(14001))), None);
+    }
+
+
+    #[test]
+    fn ext_multipage_seeking() {
+        let mut cache = new_cache("ext_multipage_seeking");
+        let mut listing1 = Listing::new();
+        for i in 0..100_000 {
+            listing1.add(&[Posting(DocId(i))], &mut cache);
+        }
+        listing1.commit(&mut cache);
+        let mut decoder = listing1.posting_decoder(&cache);
+
+        assert_eq!(decoder.next(), Some(Posting(DocId(0))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(1))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(2))),
+                   Some(Posting(DocId(2))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(3))),
+                   Some(Posting(DocId(3))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(1000))),
+                   Some(Posting(DocId(1000))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(1001))),
+                   Some(Posting(DocId(1001))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(99_990))),
+                   Some(Posting(DocId(99_990))));
+        assert_eq!(decoder.next_seek(&Posting(DocId(99_995))),
+                   Some(Posting(DocId(99_995))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(99_996))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(99_997))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(99_998))));
+        assert_eq!(decoder.next(), Some(Posting(DocId(99_999))));
     }
 
 }

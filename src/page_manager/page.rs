@@ -2,6 +2,7 @@ use std::slice;
 use std::fmt;
 use std::mem;
 use std::io;
+use std::u64;
 use std::ops::{Index, IndexMut};
 
 use page_manager:: {BLOCKSIZE, Block, BlockId};
@@ -13,6 +14,12 @@ pub struct Page(pub [Block; PAGESIZE]);
 
 #[derive(Copy, Clone, Ord, PartialOrd, PartialEq, Eq, Debug)]
 pub struct PageId(pub u64);
+
+impl PageId {
+    pub fn none() -> PageId {
+        PageId(u64::MAX)
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Pages(pub Vec<PageId>, pub Option<UnfullPage>);
@@ -52,6 +59,16 @@ impl Pages {
         self.len() == 0
     }
 
+    pub fn get(&self, ptr: usize) -> Option<PageId> {
+        if ptr < self.0.len() {
+            Some(self.0[ptr])
+        } else if self.has_unfull() && ptr < self.len() {
+            Some((self.1).unwrap().0)
+        } else {
+            None
+        }
+    }
+    
     #[inline]
     pub fn push(&mut self, page_id: PageId)  {
         self.0.push(page_id);

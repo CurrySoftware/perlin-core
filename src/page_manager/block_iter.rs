@@ -1,65 +1,56 @@
 use std::sync::Arc;
+use std::usize;
 
 use page_manager::{Pages, Page, PageId, BlockId, Block, RamPageCache, PageCache, PAGESIZE};
 
 #[derive(Clone, Debug)]
 pub struct BlockIter<'a> {
     cache: &'a RamPageCache,
-    current_page: Arc<Page>,
     pages: Pages,
-    block_counter: BlockId,
-    page_ptr: usize,
+    current_page: (PageId, Arc<Page>),
+    page_index: usize,
+    ptr: usize
 }
 
 impl<'a> BlockIter<'a> {
     pub fn new(cache: &'a RamPageCache, pages: Pages) -> Self {
         BlockIter {
             cache: cache,
-            current_page: Arc::new(Page::empty()),
             pages: pages,
-            block_counter: BlockId::first(),
-            page_ptr: 0,
+            current_page: (PageId::none(), Arc::new(Page::empty())),
+            page_index: usize::MAX, 
+            ptr: 0,
         }
     }
 
-    fn next_page_id(&mut self) -> Option<PageId> {
-        if self.page_ptr < self.pages.0.len() {
-            let p_id = self.pages.0[self.page_ptr];
-            Some(p_id)
-        } else if self.page_ptr < self.pages.len() {
-            let unfull_page = try_option!(self.pages.1);
-            self.block_counter = unfull_page.from();
-            Some(unfull_page.0)
+    fn get_page(&mut self) -> Option<()> {
+        //On what page are we?
+        let page_id = try_option!(self.pages.get(self.calc_page_index()));
+        let page = self.cache.get_page(page_id);
+        self.page_index = self.calc_page_index();
+        self.current_page = (page_id, page);
+        Some(())        
+    }
+
+    fn calc_page_index(&self) -> usize {
+        self.ptr/PAGESIZE
+    }
+
+    fn calc_block_index(&self) -> Option<BlockId> {
+        if self.page_index == self.pages.len() -1 && self.pages.has_unfull()  {
+            let res = BlockId((self.ptr % PAGESIZE) as u16 + self.pages.unfull().unwrap().from().0);
+            if res.0 >= self.pages.unfull().unwrap().to().0 {
+                None
+            } else {
+                Some(res)
+            }
         } else {
-            None
+            Some(BlockId((self.ptr % PAGESIZE) as u16))
         }
     }
 
     pub fn skip_blocks(&mut self, by: usize) {
-        let pages = (by + self.block_counter.0 as usize) / PAGESIZE;
-        // Inc page_ptr        
-        self.page_ptr += pages;
-        // inc block_counter (wraps around PAGESIZE)
-        self.block_counter = BlockId(((self.block_counter.0 as usize + by) % PAGESIZE) as u16);
-        // If we need the page (because we jumped over the step where we get it during
-        // iteration)
-        if pages > 0 && self.block_counter != BlockId::first() {
-            if self.page_ptr == self.pages.len() - 1 && self.pages.has_unfull() {
-                // We land in the middle of an unfull page
-                // We need to adjust blockcounter
-                let bc = BlockId(self.block_counter.0 +
-                                 self.pages
-                                     .unfull()
-                                     .unwrap()
-                                     .from()
-                                     .0);
-                self.current_page = self.cache.get_page(self.next_page_id().unwrap());
-                self.block_counter = bc;
-            } else {
-                // Not an unfull page. Blockcounter will be fine
-                self.current_page = self.cache.get_page(self.next_page_id().unwrap());
-            }
-        }
+        self.ptr += by;
     }
 }
 
@@ -67,27 +58,12 @@ impl<'a> Iterator for BlockIter<'a> {
     type Item = Block;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.block_counter == BlockId::first() {
-            // Get new page
-            self.current_page = self.cache.get_page(try_option!(self.next_page_id()));
+        if self.calc_page_index() != self.page_index {
+            try_option!(self.get_page());
         }
-        // Special case for last block:
-        // 1. Unfull page has to exist
-        // 2. BlockCounter must be >= unfull_page.to()
-        if self.page_ptr == self.pages.len() -1 && self.pages.1.is_some() &&
-           self.block_counter >=
-           self.pages
-               .1
-               .map(|unfull_page| unfull_page.to())
-               .unwrap() {
-            return None;
-        }
-        let res = Some(self.current_page[self.block_counter]);
-        self.block_counter.inc();
-        if self.block_counter == BlockId::first() {
-            self.page_ptr += 1;
-        }
-        res
+        let block_index = try_option!(self.calc_block_index());
+        self.ptr += 1;
+        Some(self.current_page.1[block_index])
     }
 }
 
@@ -251,6 +227,69 @@ mod tests {
         assert_eq!(iter.next(), Some(Block([17; BLOCKSIZE])));
         iter.skip_blocks(1);
         assert_eq!(iter.next(), Some(Block([19; BLOCKSIZE])));
+    }
+
+    #[test]
+    fn skip_blocks_unfull() {
+        let mut cache = new_cache("skip_blocks_unfull");
+        // Fill 10 pages
+        for i in 0..10 {
+            assert_eq!(cache.store_block(Block([(i % 255) as u8; BLOCKSIZE])),
+                       PageId(i));
+            for j in 1..PAGESIZE {
+                cache.store_in_place(PageId(i),
+                                     BlockId(j as u16),
+                                     Block([((j as usize) % 255) as u8; BLOCKSIZE]));
+            }
+            cache.flush_page(PageId(i));
+        }
+        // Add Unfull page
+        assert_eq!(cache.store_block(Block([110; BLOCKSIZE])), PageId(10));
+        cache.store_in_place(PageId(10), BlockId(1), Block([111; BLOCKSIZE]));
+        cache.store_in_place(PageId(10), BlockId(2), Block([112; BLOCKSIZE]));
+        cache.store_in_place(PageId(10), BlockId(3), Block([113; BLOCKSIZE]));
+        cache.store_in_place(PageId(10), BlockId(4), Block([114; BLOCKSIZE]));
+        cache.store_in_place(PageId(10), BlockId(5), Block([115; BLOCKSIZE]));
+        assert_eq!(cache.flush_unfull(PageId(10), BlockId(6)),
+                   UnfullPage::new(PageId(10), BlockId(1), BlockId(7)));
+        let mut iter =
+            BlockIter::new(&cache,
+                           Pages((0..10).map(|i| PageId(i)).collect::<Vec<_>>(),
+                                 Some(UnfullPage::new(PageId(10), BlockId(1), BlockId(6)))));
+
+        assert_eq!(iter.next(), Some(Block([0; BLOCKSIZE])));
+        iter.skip_blocks(1);
+        assert_eq!(iter.next(), Some(Block([2; BLOCKSIZE])));
+        iter.skip_blocks(63);
+        // because on new page
+        assert_eq!(iter.next(), Some(Block([2; BLOCKSIZE])));
+        iter.skip_blocks(573);
+        // Last page
+        // 641
+        assert_eq!(iter.next(), Some(Block([110; BLOCKSIZE])));
+        iter.skip_blocks(1);
+        assert_eq!(iter.next(), Some(Block([112; BLOCKSIZE])));
+        assert_eq!(iter.next(), Some(Block([113; BLOCKSIZE])));
+        iter.skip_blocks(200);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+
+        let mut iter =
+            BlockIter::new(&cache,
+                           Pages((0..10).map(|i| PageId(i)).collect::<Vec<_>>(),
+                                 Some(UnfullPage::new(PageId(10), BlockId(1), BlockId(6)))));
+        iter.skip_blocks(646);
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next(), None);
+
+        let mut iter =
+            BlockIter::new(&cache,
+                           Pages((0..10).map(|i| PageId(i)).collect::<Vec<_>>(),
+                                 Some(UnfullPage::new(PageId(10), BlockId(1), BlockId(6)))));
+        iter.skip_blocks(639);
+        assert_eq!(iter.next(), Some(Block([63; BLOCKSIZE])));
+        iter.skip_blocks(1);
+        assert_eq!(iter.next(), Some(Block([111; BLOCKSIZE])));
     }
 
 }
