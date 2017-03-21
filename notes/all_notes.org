@@ -412,6 +412,11 @@ Sorting 10.000 values takes about 0.5ms!
 One comparison takes !at least! (w/o disk IO) 2ns!
 Leaves us with about 500.000 operations if we dont sort and 250.000 operations if we sort!
 
+One disk lookup (OS cached though), adds at least another 1µs!
+
+
+IO is the limiting factor here! The aim needs to be to minimize IO requests!
+
 Data:
 Query Result:
 &[DocId]
@@ -470,5 +475,29 @@ for option in options {
         results.insert(index, (option, size));
         limit = results[k].1;
      }
+  }
+}
+
+
+From tests:
+Works for large resultsets (as many filteroptions get ruled out), dont work for small resultsets.
+
+*** FilterUnions
+Assumption 1: Filters are mostly disjunct
+Assumption 2: FilterSizes are exponentially distributed
+
+
+Let F be the set of all Filters where for each fi e F: |fi| >= |fi+1|
+
+*** Impossible
+Assumption: Filters are mostly disjunct
+
+Let N = Query Result Set
+let accum = 0
+for each filter in F {
+  let count = intersection(N, filter);
+  accum += count;
+  if (|N| * factor) - accum < |topk| {
+     break;
   }
 }
