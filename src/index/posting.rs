@@ -79,14 +79,16 @@ pub struct PostingDecoder<'a> {
     posting_buffer: BiasedRingBuffer<Posting>,
     bias_list: &'a [Posting],
     blocks: BlockIter<'a>,
+    len: u32
 }
 
 impl<'a> PostingDecoder<'a> {
-    pub fn new(blocks: BlockIter<'a>, bias_list: &'a [Posting]) -> Self {
+    pub fn new(blocks: BlockIter<'a>, bias_list: &'a [Posting], len: u32) -> Self {
         PostingDecoder {
             blocks: blocks,
             bias_list: bias_list,
             posting_buffer: BiasedRingBuffer::new(),
+            len: len
         }
     }
 }
@@ -133,7 +135,7 @@ impl<'a> Iterator for PostingDecoder<'a> {
     // Pay attention!
     // TODO: Solve that independently of blocksize and compressor
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.bias_list.len() * 16, Some(self.bias_list.len() * 16))
+        (self.len as usize, Some(self.len as usize))
     }
 }
 

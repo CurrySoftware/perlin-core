@@ -17,6 +17,7 @@ pub struct Listing {
     block_start: Posting,
     block_end: Posting,
     posting_buffer: BiasedRingBuffer<Posting>,
+    size: u32
 }
 
 impl Listing {
@@ -29,6 +30,7 @@ impl Listing {
             posting_buffer: BiasedRingBuffer::new(),
             block_start: Posting(DocId(0)),
             block_end: Posting(DocId(0)),
+            size: 0,
         }
     }
 
@@ -46,6 +48,7 @@ impl Listing {
             if !self.posting_buffer.is_empty() && self.block_end == *posting {
                 continue;
             }
+            self.size += 1;
             // set the new block end
             self.block_end = *posting;
             self.posting_buffer.push_back(*posting);
@@ -69,7 +72,7 @@ impl Listing {
     /// Construct a posting decoder for this listing
     pub fn posting_decoder<'a>(&'a self, cache: &'a RamPageCache) -> PostingDecoder<'a> {
         let block_iter = BlockIter::new(cache, self.pages.clone());
-        PostingDecoder::new(block_iter, &self.block_biases)
+        PostingDecoder::new(block_iter, &self.block_biases, self.size)
     }
 
     fn compress_and_ship(&mut self, page_cache: &mut RamPageCache, force: bool) {
@@ -105,7 +108,7 @@ impl Listing {
                 // Decode the postings through a decoder
                 PostingDecoder::new(block_iter,
                                     &self.block_biases[self.block_biases.len() -
-                                     block_count as usize..])
+                                     block_count as usize..], self.size)
                         .collect::<Vec<_>>()
             };
             self.block_counter = BlockId::first();
