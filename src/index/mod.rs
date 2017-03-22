@@ -126,7 +126,17 @@ impl<TTerm> Index<TTerm>
         if let Some(listing) = self.listings.get(term_id) {
             return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
         }
+        // Unkown term id. Return an empty Iterator
         PostingIterator::Empty
+    }
+
+    /// In how many documents does this term occur?
+    pub fn term_df(&self, term_id: &TermId) -> usize {
+        if let Some(listing) = self.listings.get(term_id) {
+            return listing.len();
+        }
+        // Unkown term. DF must be 0
+        0
     }
 }
 
@@ -245,10 +255,7 @@ mod tests {
                    (0..100).filter(|i| i % 2 != 0).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
 
         assert_eq!(index1.query_atom(&200).collect::<Vec<_>>(),
-                   (1..200)
-                       .filter(|i| i % 2 == 0)
-                       .map(|i| Posting(DocId(i)))
-                       .collect::<Vec<_>>());
+                   (1..200).filter(|i| i % 2 == 0).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
         assert_eq!(index2.query_atom(&200).collect::<Vec<_>>(), vec![]);
     }
 
@@ -266,7 +273,7 @@ mod tests {
         index.index_document(0..10, Some(DocId(0)));
         let mut terms = index.iterate_terms().map(|(term, _)| term.clone()).collect::<Vec<_>>();
         terms.sort();
-        assert_eq!(terms, vec![0,1,2,3,4,5,6,7,8,9]);
+        assert_eq!(terms, vec![0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
     }
 
     #[test]
@@ -277,7 +284,8 @@ mod tests {
         index.commit();
         for (term, term_id) in index.iterate_terms() {
             if *term == 0 {
-                assert_eq!(index.query_term(term_id).collect::<Vec<_>>(), vec![Posting(DocId(0))]);
+                assert_eq!(index.query_term(term_id).collect::<Vec<_>>(),
+                           vec![Posting(DocId(0))]);
             }
         }
     }

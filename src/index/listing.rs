@@ -34,6 +34,10 @@ impl Listing {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.size as usize
+    }
+
     pub fn add(&mut self, postings: &[Posting], page_cache: &mut RamPageCache) {
         // Check if we previously commited an unfull page
         // in that case it has to be unraveld

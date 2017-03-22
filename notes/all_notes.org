@@ -429,6 +429,22 @@ Filter#2
 
 Filter 1 is more relevant when |Filter#1 intersected with query result| > |Filter#2 intersected with query result|
 
+*** Requirements on Index API
+In the best case we have a
+f: () -> Iterator<Item=(&TTerm, PostingIterator)>
+Which returns items sorted by PostingIterator.len()
+
+
+**** Possibility 1: Arc
+
+struct Index {
+  listings: Vec<(TermId, Arc<Listing>)>,
+  vocab: SharedVocab<Arc<TTerm>>,
+  ordering: Vec<(Arc<TTerm>, Arc<Listing>)>
+
+}
+
+
 *** Naive Approach
 for each f in filters
 calculate |f intersected with query result|
@@ -489,7 +505,7 @@ Assumption 2: FilterSizes are exponentially distributed
 
 Let F be the set of all Filters where for each fi e F: |fi| >= |fi+1|
 
-*** Impossible
+*** Rule out Impossibles
 Assumption: Filters are mostly disjunct
 
 Let N = Query Result Set
