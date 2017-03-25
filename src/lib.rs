@@ -6,7 +6,7 @@
 //!
 //! Here you will find the basic building blocks on which perlin is build upon!
 #[macro_use]
-mod utils;
+pub mod utils;
 mod compressor;
 pub mod page_manager;
 pub mod index;
