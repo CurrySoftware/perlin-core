@@ -16,12 +16,11 @@ pub trait SeekingIterator {
 
 /// Wraps an iterator and provides peeking abilities to it.
 /// Very similar to `std::iter::Peekable`
+#[derive(Clone)]
 pub struct PeekableSeekable<I: Iterator> {
     iter: I,
     peeked: Option<I::Item>,
 }
-
-
 
 impl<I> SeekingIterator for PeekableSeekable<I>
     where I: Iterator<Item = <I as SeekingIterator>::Item> + SeekingIterator,

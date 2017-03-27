@@ -1,3 +1,4 @@
+pub mod progress;
 pub mod seeking_iterator;
 pub mod counter;
 pub mod ring_buffer;

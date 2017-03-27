@@ -3,6 +3,7 @@ use page_manager::BlockIter;
 use utils::ring_buffer::BiasedRingBuffer;
 use utils::Baseable;
 use utils::seeking_iterator::SeekingIterator;
+use utils::progress::Progress;
 use index::listing::UsedCompressor;
 
 const SAMPLING_THRESHOLD: usize = 200;
@@ -79,7 +80,8 @@ pub struct PostingDecoder<'a> {
     posting_buffer: BiasedRingBuffer<Posting>,
     bias_list: &'a [Posting],
     blocks: BlockIter<'a>,
-    len: u32
+    pos: u32,
+    len: u32,
 }
 
 impl<'a> PostingDecoder<'a> {
@@ -88,8 +90,13 @@ impl<'a> PostingDecoder<'a> {
             blocks: blocks,
             bias_list: bias_list,
             posting_buffer: BiasedRingBuffer::new(),
+            pos: 0,
             len: len
         }
+    }
+
+    pub fn progress(&self) -> Progress {
+        Progress::from(self.pos, self.len)
     }
 }
 
@@ -127,6 +134,7 @@ impl<'a> Iterator for PostingDecoder<'a> {
                 UsedCompressor::decompress(block, &mut self.posting_buffer);
             }
         }
+        self.pos += 1;
         let a = self.posting_buffer.pop_front();
         a
     }
@@ -156,9 +164,11 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
         if index > 0 {
             // Case 3
             // Flush posting buffer
+            self.pos += self.posting_buffer.count() as u32;
             self.posting_buffer.flush();
             // Get block
             if index > 1 {
+                self.pos += (index as u32 - 1u32) * 16u32;
                 self.blocks.skip_blocks(index - 1);
                 self.bias_list = &self.bias_list[index - 1..];
             }
