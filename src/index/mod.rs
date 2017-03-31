@@ -36,7 +36,7 @@ impl<TTerm> Index<TTerm>
 
     }
 
-    pub fn index_term(&mut self, term: TTerm, doc_id: DocId) {
+    pub fn index_term(&mut self, doc_id: DocId, term: TTerm) {
         // Assert one critical assumption about the doc_id:
         // It must not be smaller than any previous doc_ids!
         // If it is, fail hard before something bad happens!
@@ -182,10 +182,10 @@ mod tests {
     #[test]
     fn term_indexing() {
         let mut index = new_index("term_indexing");
-        index.index_term(100, DocId(0));
-        index.index_term(200, DocId(0));
-        index.index_term(100, DocId(1));
-        index.index_term(150, DocId(1));
+        index.index_term(DocId(0), 100);
+        index.index_term(DocId(0), 200);
+        index.index_term(DocId(1), 100);
+        index.index_term(DocId(1), 150);
         index.commit();
 
         assert_eq!(index.query_atom(&100).collect::<Vec<_>>(),
