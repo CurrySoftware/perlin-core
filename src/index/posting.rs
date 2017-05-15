@@ -96,7 +96,13 @@ impl<'a> PostingDecoder<'a> {
     }
 
     pub fn progress(&self) -> Progress {
-        Progress::from(self.pos, self.len)
+        use std::cmp;
+        // It is possible, that self.pos exeeds self.len
+        // because of seeking and jumping into the last block
+        // This hurts nowhere but here
+        // So instead of ensuring a correct pos all the time
+        // We just make sure never to pass a pos > len here
+        Progress::from(cmp::min(self.pos, self.len), self.len)
     }
 }
 

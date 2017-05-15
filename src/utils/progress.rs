@@ -1,6 +1,6 @@
 use std::cmp::Ordering;
 
-#[derive(PartialEq, PartialOrd)]
+#[derive(PartialEq, PartialOrd, Debug)]
 pub struct Progress(f32);
 
 impl Progress {
@@ -9,6 +9,7 @@ impl Progress {
     }
     
     pub fn from(a: u32, b: u32) -> Self {
+        println!("Progress from {} to {} => {:?}", a, b, a as f32/b as f32);
         if b == 0 {
             Progress::done()
         } else {
@@ -50,6 +51,12 @@ mod tests {
         assert_eq!(progress.project_amount(1), 100_000);
         assert_eq!(progress.project_amount(10), 1_000_000);
         assert_eq!(progress.project_amount(20), 2_000_000);
+    }
+
+    #[test]
+    fn full() {
+        let progress = Progress::from(10, 10);
+        assert_eq!(progress.project_amount(10), 10);
     }
     
 }
