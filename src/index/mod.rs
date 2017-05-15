@@ -109,6 +109,7 @@ impl<TTerm> Index<TTerm>
         }
     }
 
+    /// Get all DocumentIds for a single term
     pub fn query_atom(&self, atom: &TTerm) -> PostingIterator {
         if let Some(term_id) = self.vocabulary.get(atom) {
             // Found term
@@ -122,6 +123,7 @@ impl<TTerm> Index<TTerm>
         PostingIterator::Empty
     }
 
+    /// Get all DocumentIds for a single TermId
     pub fn query_term(&self, term_id: &TermId) -> PostingIterator {
         if let Some(listing) = self.listings.get(term_id) {
             return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
