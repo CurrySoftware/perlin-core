@@ -8,8 +8,7 @@ impl Progress {
         Progress(1f32)
     }
     
-    pub fn from(a: u32, b: u32) -> Self {
-        println!("Progress from {} to {} => {:?}", a, b, a as f32/b as f32);
+    pub fn from(a: u32, b: u32) -> Self {     
         if b == 0 {
             Progress::done()
         } else {
