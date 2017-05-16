@@ -6,8 +6,6 @@ use utils::seeking_iterator::SeekingIterator;
 use utils::progress::Progress;
 use index::listing::UsedCompressor;
 
-const SAMPLING_THRESHOLD: usize = 200;
-
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone)]
 pub struct Posting(pub DocId);
 #[derive(Debug, PartialEq, Eq, Ord, PartialOrd, Copy, Clone)]
@@ -188,108 +186,6 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
     }
 }
 
-pub fn get_intersection_size(lhs: PostingIterator, rhs: PostingIterator) -> usize {
-    let mut lhs = match lhs {
-        PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder,
-    };
-    let mut rhs = match rhs {
-        PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder,
-    };
-    intersection_size(&mut lhs, &mut rhs)
-}
-
-
-pub fn estimate_intersection_size(lhs: PostingIterator,
-                                  rhs: PostingIterator,
-                                  sample_size: usize)
-                                  -> usize {
-    let lhs = match lhs {
-        PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder,
-    };
-    let rhs = match rhs {
-        PostingIterator::Empty => return 0,
-        PostingIterator::Decoder(decoder) => decoder,
-    };
-
-    // Get the shorter one
-    let (mut shorter, mut longer) = if lhs.len() < rhs.len() {
-        (lhs, rhs)
-    } else {
-        (rhs, lhs)
-    };
-
-
-    if shorter.len() < SAMPLING_THRESHOLD {
-        // Count
-        intersection_size(&mut shorter, &mut longer)
-    } else {
-        intersection_size_limit(&mut shorter, &mut longer, sample_size) *
-        (shorter.len() / sample_size)
-    }
-}
-
-macro_rules! unwrap_or_break{
-    ($operand:expr) => {
-        if let Some(x) = $operand {
-            x
-        } else {
-            break;
-        }
-    }
-}
-
-fn intersection_size_limit(shorter: &mut PostingDecoder,
-                           longer: &mut PostingDecoder,
-                           limit: usize)
-                           -> usize {
-    let mut count = 0;
-    let mut focus = if let Some(x) = shorter.next() {
-        x
-    } else {
-        return 0;
-    };
-    for _ in 0..limit {
-        let r = unwrap_or_break!(longer.next_seek(&focus));
-        if r == focus {
-            count += 1;
-            focus = unwrap_or_break!(shorter.next());
-            continue;
-        }
-        focus = unwrap_or_break!(shorter.next_seek(&r));
-        if r == focus {
-            count += 1;
-            focus = unwrap_or_break!(shorter.next());
-        }
-    }
-    count
-}
-
-
-fn intersection_size(shorter: &mut PostingDecoder, longer: &mut PostingDecoder) -> usize {
-    let mut count = 0;
-    let mut focus = if let Some(x) = shorter.next() {
-        x
-    } else {
-        return 0;
-    };
-    loop {
-        let r = unwrap_or_break!(longer.next_seek(&focus));
-        if r == focus {
-            count += 1;
-            focus = unwrap_or_break!(shorter.next());
-            continue;
-        }
-        focus = unwrap_or_break!(shorter.next_seek(&r));
-        if r == focus {
-            count += 1;
-            focus = unwrap_or_break!(shorter.next());
-        }
-    }
-    count
-}
 
 
 #[cfg(test)]
@@ -390,35 +286,6 @@ mod tests {
         assert_eq!(listing1.posting_decoder(&cache).collect::<Vec<_>>(), res1);
         assert_eq!(listing2.posting_decoder(&cache).collect::<Vec<_>>(), res2);
         assert_eq!(listing3.posting_decoder(&cache).collect::<Vec<_>>(), res3);
-    }
-
-    #[test]
-    fn intersection_size() {
-        let mut cache = new_cache("intersection_size");
-        let mut listing1 = Listing::new();
-        let mut listing2 = Listing::new();
-        let mut listing3 = Listing::new();
-        for i in 0..100 {
-            listing1.add(&[Posting(DocId(i))], &mut cache);
-            listing2.add(&[Posting(DocId(i))], &mut cache);
-            if i % 2 == 0 {
-                listing3.add(&[Posting(DocId(i))], &mut cache);
-            }
-
-        }
-        listing1.commit(&mut cache);
-        listing2.commit(&mut cache);
-        listing3.commit(&mut cache);
-
-        assert_eq!(
-            estimate_intersection_size(
-                PostingIterator::Decoder(listing1.posting_decoder(&cache)),
-                PostingIterator::Decoder(listing2.posting_decoder(&cache)), 100), 100);
-
-        assert_eq!(
-            estimate_intersection_size(
-                PostingIterator::Decoder(listing1.posting_decoder(&cache)),
-                PostingIterator::Decoder(listing3.posting_decoder(&cache)), 100), 50);
     }
 
     #[test]
