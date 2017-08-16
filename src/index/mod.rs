@@ -21,6 +21,17 @@ pub struct Index<TTerm: Hash + Eq> {
     doc_count: usize,
 }
 
+/// The inverse document frequency defined by
+/// idf = ln(N/nt)
+/// The natural logarithm of (the number of documents divided by the number of documents a term t appears in)
+pub struct InverseDocumentFrequency(pub f32);
+
+impl InverseDocumentFrequency {
+    fn from(documents: usize, term_len: usize) -> Self {
+        InverseDocumentFrequency((documents as f32 / term_len as f32).ln())
+    }
+}
+
 
 impl<TTerm> Index<TTerm>
     where TTerm: Hash + Ord
@@ -109,6 +120,11 @@ impl<TTerm> Index<TTerm>
         }
     }
 
+    /// Get the TermId for a certain Term
+    pub fn get_term_id(&self, atom: &TTerm) -> Option<TermId> {
+        self.vocabulary.get(atom)
+    }
+
     /// Get all DocumentIds for a single term
     pub fn query_atom(&self, atom: &TTerm) -> PostingIterator {
         if let Some(term_id) = self.vocabulary.get(atom) {
@@ -124,12 +140,14 @@ impl<TTerm> Index<TTerm>
     }
 
     /// Get all DocumentIds for a single TermId
-    pub fn query_term(&self, term_id: &TermId) -> PostingIterator {
+    pub fn query_term(&self, term_id: &TermId) -> (InverseDocumentFrequency, PostingIterator) {
         if let Some(listing) = self.listings.get(term_id) {
-            return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
+            let decoder = listing.posting_decoder(&self.page_manager);
+            let idf = InverseDocumentFrequency::from(self.doc_count, decoder.len());
+            return (idf, PostingIterator::Decoder(decoder));
         }
         // Unkown term id. Return an empty Iterator
-        PostingIterator::Empty
+        (InverseDocumentFrequency(0.0), PostingIterator::Empty)
     }
 
     /// In how many documents does this term occur?

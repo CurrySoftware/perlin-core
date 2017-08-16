@@ -48,8 +48,8 @@ impl BlockManager for RamPageCache {
 
     fn store_in_place(&mut self, page_id: PageId, block_id: BlockId, block: Block) {
         //See if page is in construction cache
-        if let Some(mut page) = self.construction_cache.get_mut(&page_id) {            
-            page[block_id]  = block;                
+        if let Some(mut page) = self.construction_cache.get_mut(&page_id) {
+            page[block_id]  = block;
         } else {
             //If the page is not in construction cache we might get a pageid collision
             //Unresolved for now
@@ -59,7 +59,7 @@ impl BlockManager for RamPageCache {
 
     fn flush_page(&mut self, page_id: PageId) -> PageId {
         if let Some(page) = self.construction_cache.remove(&page_id)
-        {            
+        {
             self.invalidate(page_id);
             return self.store.store_full(page);
         }
@@ -69,7 +69,7 @@ impl BlockManager for RamPageCache {
 
     fn flush_unfull(&mut self, page_id: PageId, block_id: BlockId) -> UnfullPage {
         if let Some(page) = self.construction_cache.remove(&page_id)
-        {            
+        {
             self.invalidate(page_id);
             return self.store.store_unfull(page, block_id);
         }
@@ -88,7 +88,7 @@ impl PageCache for RamPageCache {
         self.store.delete_unfull(page_id);
         self.invalidate(page_id);
     }
-    
+
     fn get_page(&self, page_id: PageId) -> Arc<Page> {
         use std::cmp;
         match self.search_page(&page_id) {
@@ -191,5 +191,5 @@ mod tests {
             p[BlockId::first()] = Block([(i % 255) as u8; BLOCKSIZE]);
             assert_eq!(cache.get_page(PageId(i)), Arc::new(p));
         }
-    }  
+    }
 }
