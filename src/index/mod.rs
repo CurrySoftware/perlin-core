@@ -125,21 +125,23 @@ impl<TTerm> Index<TTerm>
         self.vocabulary.get(atom)
     }
 
-    /// Get all DocumentIds for a single term
-    pub fn query_atom(&self, atom: &TTerm) -> PostingIterator {
+    /// Get all DocumentIds and its inverse document frequency of a single term
+    pub fn query_atom(&self, atom: &TTerm) -> (InverseDocumentFrequency, PostingIterator) {
         if let Some(term_id) = self.vocabulary.get(atom) {
             // Found term
             if let Some(listing) = self.listings.get(&term_id) {
                 // Got listing for term.
                 // Might not be the case for a shared vocabulary!
-                return PostingIterator::Decoder(listing.posting_decoder(&self.page_manager));
+                let decoder = listing.posting_decoder(&self.page_manager);
+                let idf = InverseDocumentFrequency::from(self.doc_count, decoder.len());
+                return (idf, PostingIterator::Decoder(decoder));
             }
         }
         // Term not found, return an empty iterator!
-        PostingIterator::Empty
+        (InverseDocumentFrequency(0.0), PostingIterator::Empty)
     }
 
-    /// Get all DocumentIds for a single TermId
+    /// Get all DocumentIds and its inverse document frequency of a single TermId
     pub fn query_term(&self, term_id: &TermId) -> (InverseDocumentFrequency, PostingIterator) {
         if let Some(listing) = self.listings.get(term_id) {
             let decoder = listing.posting_decoder(&self.page_manager);
@@ -195,7 +197,7 @@ mod tests {
         assert_eq!(index.index_document((500..600), None), DocId(2));
         index.commit();
 
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&0).1).collect::<Vec<_>>(),
                    vec![Posting(DocId(0))]);
     }
 
@@ -208,9 +210,9 @@ mod tests {
         index.index_term(DocId(1), 150);
         index.commit();
 
-        assert_eq!(index.query_atom(&100).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&100).1).collect::<Vec<_>>(),
                    vec![Posting(DocId(0)), Posting(DocId(1))]);
-        assert_eq!(index.query_atom(&150).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&150).1).collect::<Vec<_>>(),
                    vec![Posting(DocId(1))]);
     }
 
@@ -222,9 +224,9 @@ mod tests {
         }
         index.commit();
 
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&0).1).collect::<Vec<_>>(),
                    vec![Posting(DocId(0))]);
-        assert_eq!(index.query_atom(&99).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&99).1).collect::<Vec<_>>(),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
     }
 
@@ -236,13 +238,13 @@ mod tests {
         }
         index.commit();
 
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&0).1).collect::<Vec<_>>(),
                    vec![Posting(DocId(0))]);
-        assert_eq!(index.query_atom(&99).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&99).1).collect::<Vec<_>>(),
                    (0..100).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
         assert_eq!(index.index_document(0..400, None), DocId(200));
         index.commit();
-        assert_eq!(index.query_atom(&0).collect::<Vec<_>>(),
+        assert_eq!((index.query_atom(&0).1).collect::<Vec<_>>(),
                    vec![Posting(DocId(0)), Posting(DocId(200))]);
     }
 
@@ -270,13 +272,13 @@ mod tests {
         index1.commit();
         index2.commit();
 
-        assert_eq!(index1.query_atom(&99).collect::<Vec<_>>(), vec![]);
-        assert_eq!(index2.query_atom(&99).collect::<Vec<_>>(),
+        assert_eq!((index1.query_atom(&99).1).collect::<Vec<_>>(), vec![]);
+        assert_eq!((index2.query_atom(&99).1).collect::<Vec<_>>(),
                    (0..100).filter(|i| i % 2 != 0).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
 
-        assert_eq!(index1.query_atom(&200).collect::<Vec<_>>(),
+        assert_eq!((index1.query_atom(&200).1).collect::<Vec<_>>(),
                    (1..200).filter(|i| i % 2 == 0).map(|i| Posting(DocId(i))).collect::<Vec<_>>());
-        assert_eq!(index2.query_atom(&200).collect::<Vec<_>>(), vec![]);
+        assert_eq!((index2.query_atom(&200).1).collect::<Vec<_>>(), vec![]);
     }
 
     #[test]
@@ -304,7 +306,7 @@ mod tests {
         index.commit();
         for (term, term_id) in index.iterate_terms() {
             if *term == 0 {
-                assert_eq!(index.query_term(term_id).collect::<Vec<_>>(),
+                assert_eq!((index.query_term(term_id).1).collect::<Vec<_>>(),
                            vec![Posting(DocId(0))]);
             }
         }

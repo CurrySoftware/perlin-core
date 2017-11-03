@@ -7,8 +7,8 @@ impl Progress {
     pub fn done() -> Self {
         Progress(1f32)
     }
-    
-    pub fn from(a: u32, b: u32) -> Self {     
+
+    pub fn from(a: u32, b: u32) -> Self {
         if b == 0 {
             Progress::done()
         } else {
@@ -57,5 +57,5 @@ mod tests {
         let progress = Progress::from(10, 10);
         assert_eq!(progress.project_amount(10), 10);
     }
-    
+
 }

@@ -48,7 +48,7 @@ impl BlockManager for RamPageCache {
 
     fn store_in_place(&mut self, page_id: PageId, block_id: BlockId, block: Block) {
         //See if page is in construction cache
-        if let Some(mut page) = self.construction_cache.get_mut(&page_id) {
+        if let Some(page) = self.construction_cache.get_mut(&page_id) {
             page[block_id]  = block;
         } else {
             //If the page is not in construction cache we might get a pageid collision
