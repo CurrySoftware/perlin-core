@@ -18,18 +18,18 @@ impl<'a> BlockIter<'a> {
             cache: cache,
             pages: pages,
             current_page: (PageId::none(), Arc::new(Page::empty())),
-            page_index: usize::MAX, 
+            page_index: usize::MAX,
             ptr: 0,
         }
     }
 
     fn get_page(&mut self) -> Option<()> {
         //On what page are we?
-        let page_id = try_option!(self.pages.get(self.calc_page_index()));
+        let page_id = self.pages.get(self.calc_page_index())?;
         let page = self.cache.get_page(page_id);
         self.page_index = self.calc_page_index();
         self.current_page = (page_id, page);
-        Some(())        
+        Some(())
     }
 
     fn calc_page_index(&self) -> usize {
@@ -59,9 +59,9 @@ impl<'a> Iterator for BlockIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.calc_page_index() != self.page_index {
-            try_option!(self.get_page());
+            self.get_page()?;
         }
-        let block_index = try_option!(self.calc_block_index());
+        let block_index = self.calc_block_index()?;
         self.ptr += 1;
         Some(self.current_page.1[block_index])
     }

@@ -178,7 +178,7 @@ impl<'a> SeekingIterator for PostingDecoder<'a> {
             }
         }
         loop {
-            let v = try_option!(self.next());
+            let v = self.next()?;
             if v >= *other {
                 return Some(v);
             }
